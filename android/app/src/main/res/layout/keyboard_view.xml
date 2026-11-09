@@ -105,6 +105,22 @@
             android:text="@string/kb_tab_all" />
     </LinearLayout>
 
+    <!-- One-line hint, shown under the "In chats" tab only. -->
+    <TextView
+        android:id="@+id/kbHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/sb_kb_background"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="2dp"
+        android:text="@string/kb_hint_in_chats"
+        android:textColor="@color/sb_text_secondary"
+        android:textSize="11sp"
+        android:visibility="gone" />
+
     <!-- Content -->
     <FrameLayout
         android:id="@+id/kbContent"

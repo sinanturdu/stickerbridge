@@ -60,6 +60,7 @@ class StickerKeyboardService : InputMethodService() {
     private lateinit var thumbnails: ThumbnailLoader
 
     private lateinit var title: TextView
+    private lateinit var hint: TextView
     private lateinit var tabViews: Map<Tab, TextView>
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     /** Tab shown now; null until the first load decides the default. */
@@ -90,6 +91,7 @@ class StickerKeyboardService : InputMethodService() {
         refresh = view.findViewById(R.id.kbRefresh)
         spinner = view.findViewById(R.id.kbSpinner)
         title = view.findViewById(R.id.kbTitle)
+        hint = view.findViewById(R.id.kbHint)
         tabViews = mapOf(
             Tab.RECENT to view.findViewById(R.id.kbTabRecent),
             Tab.FAVORITES to view.findViewById(R.id.kbTabFavorites),
@@ -188,6 +190,7 @@ class StickerKeyboardService : InputMethodService() {
 
     private fun renderTabs(tab: Tab) {
         tabViews.forEach { (t, tv) -> tv.isSelected = t == tab }
+        hint.visibility = if (tab == Tab.ALL) View.VISIBLE else View.GONE
         title.setText(
             when (tab) {
                 Tab.RECENT -> R.string.kb_title_recent
@@ -202,7 +205,7 @@ class StickerKeyboardService : InputMethodService() {
         loadJob = scope.launch {
             val library = app.library
             val (tab, items, favorites) = withContext(Dispatchers.IO) {
-                // First run: All. Afterwards (no tab remembered): Recent if it is not empty.
+                // No tab chosen manually: Recent if it is not empty, otherwise In chats.
                 var tab = currentTab
                 var recent: List<StickerGridItem>? = null
                 if (tab == null) {

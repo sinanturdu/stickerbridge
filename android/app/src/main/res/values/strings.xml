@@ -30,7 +30,7 @@
 
     <!-- Keyboard -->
     <string name="kb_back">◀ Keyboard</string>
-    <string name="kb_title">Recently seen</string>
+    <string name="kb_title">In chats</string>
     <string name="kb_refresh">↻</string>
     <string name="kb_refresh_desc">Refresh stickers</string>
     <string name="kb_synced">Synced %1$s</string>
@@ -50,7 +50,8 @@
     <!-- Keyboard tabs -->
     <string name="kb_tab_recent">Recent</string>
     <string name="kb_tab_favorites">Favorites</string>
-    <string name="kb_tab_all">All</string>
+    <string name="kb_tab_all">In chats</string>
+    <string name="kb_hint_in_chats">Stickers seen in your chats, newest first</string>
     <string name="kb_title_recent">Recently sent</string>
     <string name="kb_title_favorites">Favorites</string>
     <string name="kb_empty_recent">Stickers you send will appear here</string>
