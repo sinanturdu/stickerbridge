@@ -411,6 +411,7 @@ class StickerKeyboardService : InputMethodService() {
         inputType = info.inputType,
         imeOptions = info.imeOptions,
         hint = info.hintText?.toString(),
+        mimes = androidx.core.view.inputmethod.EditorInfoCompat.getContentMimeTypes(info).filterNotNull(),
     )
 
     private fun classifyField(info: EditorInfo?): FieldKind =

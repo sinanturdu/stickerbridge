@@ -19,6 +19,14 @@ StickerBridge converts animated WhatsApp stickers (animated WEBP) to GIF because
 | `inputType` | `0x000ac001` (text, sentence caps, auto-correct, multi-line, no suggestions) |
 | `imeOptions` | `0x02000001` (no fullscreen, action NONE) |
 
+## Field signatures (Instagram 448.0.0.52.84, keyboard log `SB-Field`)
+| Field | fieldId | inputType | imeOptions | contentMimeTypes | hint | Classified as |
+|---|---|---|---|---|---|---|
+| DM composer | 2131441646 | `0x000ac001` | `0x02000001` (no fullscreen, action NONE) | `image/png`, `image/jpeg`, `image/gif` | localized ("Message…") | DM |
+| Story text tool | 2131443961 | `0x0002c001` | `0x40000006` (no enter action, action DONE) | `image/*` | empty | STORY |
+
+Fallback rules for other Instagram versions (resource ids may change): exactly `image/png` + `image/jpeg` + `image/gif` → DM; `image/*` with action DONE and an empty hint → STORY; anything else → UNKNOWN (still image).
+
 ## Results
 *Verified with a working prototype (single device, single Instagram version).*
 
@@ -47,7 +55,7 @@ Instagram DMs only accept GIFs from an **allowlist** of keyboards/GIF providers 
 ## Decisions
 1. Animated stickers in **Instagram Stories** are sent as GIF (they animate).
 2. Animated stickers in **Instagram DMs** (and in Instagram fields that cannot be classified yet) are sent as the **first frame, as a still PNG with transparency**, with a one-time hint in the keyboard: "Instagram DMs show animated stickers as still images. They animate in Stories."
-3. The keyboard classifies Instagram fields as STORY / DM / UNKNOWN from `EditorInfo` (field id, input type, IME options; hint text only as a weak signal). Known signatures live in one config object (`InstagramFields`); the keyboard logs every field's signature (tag `SB-Field`, debug builds) so the Story signature can be added.
+3. The keyboard classifies Instagram fields as STORY / DM / UNKNOWN from `EditorInfo`: first the recorded signatures (field id + input type + IME options), then the content-type fallback rules above. Known signatures live in one config object (`InstagramFields`); the keyboard logs every field's signature (tag `SB-Field`, debug builds) so new versions can be added.
 4. Later, optional: try sending animated stickers to DMs as a short **video** instead of GIF.
 5. The debug experiments were removed from the app; they stay in git history.
 

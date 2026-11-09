@@ -7,35 +7,63 @@ import org.junit.Test
 class FieldClassifierTest {
 
     private val ig = InstagramFields.PACKAGE
-    private val dmSig = FieldSignature(ig, fieldId = 2131441646, inputType = 0x000ac001, imeOptions = 0x02000001, hint = "Message…")
+    private val dmMimes = listOf("image/png", "image/jpeg", "image/gif")
+    private val storyMimes = listOf("image/*")
+
+    /** Recorded on device, Instagram 448.0.0.52.84. */
+    private val dmSig = FieldSignature(ig, fieldId = 2131441646, inputType = 0x000ac001, imeOptions = 0x02000001, hint = "Message…", mimes = dmMimes)
+    private val storySig = FieldSignature(ig, fieldId = 2131443961, inputType = 0x0002c001, imeOptions = 0x40000006, hint = "", mimes = storyMimes)
+
+    // ---- real signatures ----
 
     @Test
-    fun knownDmSignatureIsDm() = assertEquals(FieldKind.DM, FieldClassifier.classify(dmSig))
+    fun recordedDmSignatureIsDm() = assertEquals(FieldKind.DM, FieldClassifier.classify(dmSig))
 
     @Test
-    fun sameFieldIdIsEnoughEvenIfFlagsDiffer() =
-        assertEquals(FieldKind.DM, FieldClassifier.classify(dmSig.copy(imeOptions = 0x00000006)))
+    fun recordedStorySignatureIsStory() = assertEquals(FieldKind.STORY, FieldClassifier.classify(storySig))
 
     @Test
-    fun matchingFlagsNeedTheWeakHintToCountAsDm() {
-        val otherId = dmSig.copy(fieldId = 12345)
-        assertEquals(FieldKind.DM, FieldClassifier.classify(otherId.copy(hint = "Mesaj gönder…")))
-        assertEquals(FieldKind.UNKNOWN, FieldClassifier.classify(otherId.copy(hint = "Aa")))
-        assertEquals(FieldKind.UNKNOWN, FieldClassifier.classify(otherId.copy(hint = null)))
+    fun knownFieldIdWinsEvenIfFlagsChange() {
+        assertEquals(FieldKind.DM, FieldClassifier.classify(dmSig.copy(imeOptions = 0x00000006, mimes = emptyList())))
+        assertEquals(FieldKind.STORY, FieldClassifier.classify(storySig.copy(inputType = 0x00000001, mimes = emptyList())))
+    }
+
+    // ---- fallbacks for other Instagram versions (resource ids changed) ----
+
+    @Test
+    fun fallbackExactPngJpegGifIsDm() {
+        val newVersionDm = dmSig.copy(fieldId = 999, hint = null)
+        assertEquals(FieldKind.DM, FieldClassifier.classify(newVersionDm))
+        assertEquals(FieldKind.DM, FieldClassifier.classify(newVersionDm.copy(mimes = listOf("image/gif", "image/png", "image/jpeg"))))
     }
 
     @Test
-    fun unrecordedInstagramFieldIsUnknown() {
-        // Story text tool: signature not recorded yet -> UNKNOWN (sent as still image).
-        val story = FieldSignature(ig, fieldId = 2131430000, inputType = 0x00020001, imeOptions = 0x00000006, hint = null)
-        assertEquals(FieldKind.UNKNOWN, FieldClassifier.classify(story))
+    fun fallbackDmNeedsExactlyThoseThreeTypes() {
+        val base = dmSig.copy(fieldId = 999)
+        assertEquals(FieldKind.UNKNOWN, FieldClassifier.classify(base.copy(mimes = listOf("image/png", "image/jpeg"))))
+        assertEquals(FieldKind.UNKNOWN, FieldClassifier.classify(base.copy(mimes = dmMimes + "image/webp")))
     }
 
     @Test
-    fun recordedStorySignatureWins() {
-        val story = FieldSignature(ig, fieldId = 777, inputType = 0x00020001, imeOptions = 0x00000006)
-        val known = InstagramFields.SIGNATURES + InstagramFields.Known(FieldKind.STORY, 777, 0x00020001, 0x00000006)
-        assertEquals(FieldKind.STORY, FieldClassifier.classify(story, known))
+    fun fallbackWildcardWithActionDoneAndEmptyHintIsStory() {
+        val newVersionStory = storySig.copy(fieldId = 888)
+        assertEquals(FieldKind.STORY, FieldClassifier.classify(newVersionStory))
+        assertEquals(FieldKind.STORY, FieldClassifier.classify(newVersionStory.copy(hint = null)))
+        assertEquals(FieldKind.STORY, FieldClassifier.classify(newVersionStory.copy(imeOptions = 0x00000006))) // other flags irrelevant
+    }
+
+    @Test
+    fun fallbackStoryNeedsWildcardActionDoneAndEmptyHint() {
+        val base = storySig.copy(fieldId = 888)
+        assertEquals(FieldKind.UNKNOWN, FieldClassifier.classify(base.copy(hint = "Add a caption"))) // hint present
+        assertEquals(FieldKind.UNKNOWN, FieldClassifier.classify(base.copy(imeOptions = 0x40000004))) // action SEND
+        assertEquals(FieldKind.UNKNOWN, FieldClassifier.classify(base.copy(mimes = listOf("image/gif")))) // no wildcard
+    }
+
+    @Test
+    fun everythingElseInInstagramIsUnknown() {
+        val search = FieldSignature(ig, fieldId = 777, inputType = 0x00000001, imeOptions = 0x00000003, hint = "Search", mimes = emptyList())
+        assertEquals(FieldKind.UNKNOWN, FieldClassifier.classify(search))
     }
 
     @Test
@@ -43,11 +71,13 @@ class FieldClassifierTest {
         assertEquals(FieldKind.OTHER_APP, FieldClassifier.classify(dmSig.copy(packageName = "com.whatsapp")))
 
     @Test
-    fun logLineTruncatesHintAndShowsHexValues() {
-        val line = FieldClassifier.describe(dmSig.copy(hint = "A very long localized hint text that goes on"), FieldKind.DM, listOf("image/gif"))
-        assertTrue(line.contains("inputType=0x000ac001"))
-        assertTrue(line.contains("imeOptions=0x02000001"))
+    fun logLineShowsSignatureAndTruncatedHint() {
+        val line = FieldClassifier.describe(storySig.copy(hint = "A very long localized hint text that goes on"), FieldKind.STORY)
+        assertTrue(line.contains("fieldId=2131443961"))
+        assertTrue(line.contains("inputType=0x0002c001"))
+        assertTrue(line.contains("imeOptions=0x40000006"))
+        assertTrue(line.contains("mimes=[image/*]"))
         assertTrue(line.contains("hint=\"A very long localized hi\""))
-        assertTrue(line.endsWith("-> DM"))
+        assertTrue(line.endsWith("-> STORY"))
     }
 }
