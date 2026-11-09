@@ -1,0 +1,65 @@
+# ===== Android / Gradle / Kotlin =====
+build/
+.gradle/
+.kotlin/
+.idea/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+output-metadata.json
+
+# ===== iOS / Xcode =====
+xcuserdata/
+DerivedData/
+*.xcuserstate
+Pods/
+
+# ===== Signing keys & secrets (NEVER commit) =====
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+.env
+*.env
+secrets.properties
+facebook_app_id.*
+google-services.json
+GoogleService-Info.plist
+
+# ===== Personal data (NEVER commit) =====
+private-stickers/
+my-stickers/
+**/whatsapp-export/**
+**/WhatsApp Stickers/**
+device-output/
+screenshots-private/
+*.session
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.crypt*
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== Python (experiment tools) =====
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ===== OS / editors =====
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
