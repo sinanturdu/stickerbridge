@@ -6,14 +6,14 @@ Rule: critical technical assumptions are proven with small experiments before pr
 - [x] Research: WhatsApp data access, Instagram insertion paths (see RESEARCH.md)
 - [x] Repository skeleton
 - [x] **E1** IME MIME probe — which image types Instagram fields accept from a keyboard (done 2026-11-09, see experiments/E1-ime-probe.md)
-- [ ] **E0** WhatsApp Android sticker folder contents ← *next*
+- [x] **E0** WhatsApp Android sticker folder contents (done 2026-11-09, see experiments/E0-whatsapp-folder.md)
 - [ ] **E2** Send/render matrix (transparency, animation, recipient view)
 - [ ] **E3** Share to Stories with a transparent PNG
 - [ ] **E4** iOS copy/paste tests (manual)
-- [ ] **E5** Linked-device favorites (test account only)
+- [ ] **E5** Linked-device favorites — pending decision (test account only)
 - [ ] **E6** WhatsApp Web IndexedDB inspection
 
-## Phase 1 — Android v0.1
+## Phase 1 — Android v0.1 keyboard ← *next*
 - Keyboard with a customizable sticker key (icon & color chosen by the user)
 - Sticker grid with groups (favorites / packs / all), ↻ refresh button
 - Source: WhatsApp sticker folder via SAF, scanned when the keyboard opens + periodically

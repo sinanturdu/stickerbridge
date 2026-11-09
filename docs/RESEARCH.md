@@ -1,6 +1,6 @@
 # Research summary
 
-Research date: 2026-11-09. Only rows labelled ✅ prototype were tested on a device (E1: one Samsung device, one Instagram Android version, 2026-11-09). Everything else is untested.
+Research date: 2026-11-09. Only rows labelled ✅ prototype were tested on a device (E0 and E1: one Samsung device, 2026-11-09). Everything else is untested.
 
 Each finding carries one label:
 - ✅ official docs
@@ -14,7 +14,10 @@ Each finding carries one label:
 | Finding | Label |
 |---|---|
 | WhatsApp has no official API to read a user's stickers or favorites. The official sticker API only sends packs *into* WhatsApp. | ✅ [1] |
-| On Android, sticker files live in `Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Stickers`. This folder probably holds only stickers seen in chats. | 🔎 |
+| On Android, sticker files live in `Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Stickers` (~11.9k `.webp` on the test device, names `STK-YYYYMMDD-WAnnnn.webp`, `.nomedia` present). It holds stickers seen in chats. | ✅ prototype → [E0](experiments/E0-whatsapp-folder.md) |
+| The same `Media/` folder also has `WhatsApp Backup Excluded Stickers` (266 `.webp`, base64-hash names, purpose unknown) and `WhatsApp Sticker Packs` (64 encrypted `STK_PK-YYYYMMDD-WAnnnn.enc` files, `.nomedia` present). | ✅ prototype → [E0](experiments/E0-whatsapp-folder.md) |
+| Favoriting or unfavoriting a never-sent sticker changes no file in any of these folders: favorites are not observable from shared storage. | ✅ prototype → [E0](experiments/E0-whatsapp-folder.md) |
+| Sending an already-cached sticker creates no new file but updates the file's mtime to the send time — a possible "recently used" signal (single observation, needs re-check). | ✅ prototype → [E0](experiments/E0-whatsapp-folder.md) |
 | The Android 11+ folder picker (SAF) blocks `Android/data` and `Android/obb`, but not `Android/media`. | ✅ [2] |
 | Favorites, their order and pack membership live in WhatsApp's private `sticker.db`. Other apps can't read it, and backups are encrypted. | ✅ [3][4] |
 | `MANAGE_EXTERNAL_STORAGE`, broad photo access and Accessibility-based screen reading are restricted by Google Play policy. | ✅ [5][6][7] |
