@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.text.format.DateUtils
 import android.view.Gravity
+import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.LinearLayout
@@ -16,6 +17,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import dev.stickerbridge.app.debug.GifSizeTest
 import dev.stickerbridge.app.ime.StickerKeyboardService
 import dev.stickerbridge.app.scan.ScanState
 import dev.stickerbridge.app.scan.ScanTrigger
@@ -25,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Onboarding: enable the keyboard, connect the stickers folder(s), show scan status. */
 class MainActivity : AppCompatActivity() {
@@ -88,7 +91,28 @@ class MainActivity : AppCompatActivity() {
             setOnCheckedChangeListener { _, on -> AppSettings.setAnimatePreviews(this@MainActivity, on) }
         }
 
+        // Hidden debug tool (debug builds only): long-press the title for the "GIF size test".
+        if (DebugLog.isDebuggable(this)) {
+            findViewById<View>(R.id.appTitle).setOnLongClickListener {
+                runGifSizeTest()
+                true
+            }
+        }
+
         uiScope.launch { app.scans.state.collect { renderStatus(it) } }
+    }
+
+    private fun runGifSizeTest() {
+        Toast.makeText(this, R.string.debug_gif_test_running, Toast.LENGTH_SHORT).show()
+        uiScope.launch {
+            val entries = withContext(Dispatchers.Default) { GifSizeTest.run(this@MainActivity) }
+            if (entries == null) {
+                Toast.makeText(this@MainActivity, R.string.debug_gif_test_no_source, Toast.LENGTH_LONG).show()
+            } else {
+                val summary = entries.joinToString(", ") { "${it.side}px ${it.bytes / 1024} KB" }
+                Toast.makeText(this@MainActivity, getString(R.string.debug_gif_test_done, summary), Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     override fun onResume() {

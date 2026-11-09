@@ -112,9 +112,24 @@ object StickerInserter {
         }
         val out = uniqueOutgoing(context, item.id, "gif")
         cached.copyTo(out, overwrite = false)
-        keepDebugCopy(context, out)
+        keepDebugCopy(context, out, webp)
         return GifOutcome(out, result, fromCache, null)
     }
+
+    /** Copies a ready-made GIF (debug size test) into a unique outgoing file. */
+    fun prepareExistingGif(context: Context, id: Long, gif: File): File {
+        val out = uniqueOutgoing(context, id, "gif")
+        gif.copyTo(out, overwrite = false)
+        return out
+    }
+
+    /** Debug builds only: <external files>/debug (pull with adb). Null in release builds. */
+    fun debugDir(context: Context): File? {
+        if (!DebugLog.isDebuggable(context)) return null
+        return context.getExternalFilesDir("debug")?.apply { mkdirs() }
+    }
+
+    const val DEBUG_SOURCE_NAME = "last_source.webp"
 
     /** Must run on the main thread with the current input connection. */
     fun commit(context: Context, ic: InputConnection, info: EditorInfo, file: File, mime: String): Boolean {
@@ -133,13 +148,15 @@ object StickerInserter {
         )
     }
 
-    /** Debug builds: copy of the last converted GIF at <external files>/debug/last.gif. */
-    private fun keepDebugCopy(context: Context, gif: File) {
-        if (!DebugLog.isDebuggable(context)) return
+    /**
+     * Debug builds: the last converted GIF (debug/last.gif) and its animated WEBP source
+     * (debug/last_source.webp, input for the "GIF size test").
+     */
+    private fun keepDebugCopy(context: Context, gif: File, source: File) {
+        val dir = debugDir(context) ?: return
         runCatching {
-            val dir = context.getExternalFilesDir("debug") ?: return
-            dir.mkdirs()
             gif.copyTo(File(dir, "last.gif"), overwrite = true)
+            source.copyTo(File(dir, DEBUG_SOURCE_NAME), overwrite = true)
         }
     }
 

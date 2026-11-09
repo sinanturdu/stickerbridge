@@ -27,6 +27,11 @@
     <string name="status_result">Last scan: %1$s</string>
     <string name="status_scan_now">Scan now</string>
     <string name="settings_title">Settings</string>
+    <string name="kb_tab_debug">Debug</string>
+    <string name="kb_title_debug">GIF size test</string>
+    <string name="debug_gif_test_running">GIF size test: converting…</string>
+    <string name="debug_gif_test_no_source">GIF size test: send an animated sticker from the keyboard first</string>
+    <string name="debug_gif_test_done">GIF size test: %1$s. Open the keyboard → Debug tab.</string>
     <string name="settings_animate_previews">Animate previews</string>
     <string name="settings_animate_previews_hint">Play animated stickers in the keyboard (Android 9+). Turn off to save battery.</string>
     <string name="onboarding_note">The folder holds stickers that appeared in your chats, not your WhatsApp favorites. Order is \"recently seen\" (file time), not WhatsApp\'s own order. Everything stays on this phone.</string>

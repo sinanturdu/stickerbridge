@@ -103,6 +103,13 @@
             style="@style/SbKeyboardTab"
             android:drawableStart="@drawable/ic_tab_all"
             android:text="@string/kb_tab_all" />
+
+        <!-- Debug builds only, after running the hidden "GIF size test". -->
+        <TextView
+            android:id="@+id/kbTabDebug"
+            style="@style/SbKeyboardTab"
+            android:text="@string/kb_tab_debug"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- One-line hint, shown under the "In chats" tab only. -->

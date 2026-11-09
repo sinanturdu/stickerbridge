@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import dev.stickerbridge.app.AppSettings
 import dev.stickerbridge.app.DebugLog
+import dev.stickerbridge.app.debug.GifSizeTest
 import dev.stickerbridge.app.MainActivity
 import dev.stickerbridge.app.R
 import dev.stickerbridge.app.StickerBridgeApp
@@ -68,6 +69,7 @@ class StickerKeyboardService : InputMethodService() {
     private var currentTab: Tab? = null
 
     private var fieldAccepts = false
+    private var hasDebugTab = false
     private var lastGeneration = -1
     private var loadJob: Job? = null
     private var stateJob: Job? = null
@@ -97,8 +99,10 @@ class StickerKeyboardService : InputMethodService() {
             Tab.RECENT to view.findViewById(R.id.kbTabRecent),
             Tab.FAVORITES to view.findViewById(R.id.kbTabFavorites),
             Tab.ALL to view.findViewById(R.id.kbTabAll),
+            Tab.DEBUG to view.findViewById(R.id.kbTabDebug),
         )
-        tabViews.forEach { (tab, tv) -> tv.setOnClickListener { selectTab(tab, remember = true) } }
+        // The Debug tab is temporary and never remembered.
+        tabViews.forEach { (tab, tv) -> tv.setOnClickListener { selectTab(tab, remember = tab != Tab.DEBUG) } }
         currentTab = savedTab()
 
         val cellPx = resources.displayMetrics.widthPixels / COLUMNS
@@ -194,7 +198,9 @@ class StickerKeyboardService : InputMethodService() {
         if (fieldAccepts && StickerFolders.connected(this).isNotEmpty()) reloadGrid()
     }
 
-    private fun savedTab(): Tab? = prefs.getString(KEY_TAB, null)?.let { runCatching { Tab.valueOf(it) }.getOrNull() }
+    private fun savedTab(): Tab? = prefs.getString(KEY_TAB, null)
+        ?.let { runCatching { Tab.valueOf(it) }.getOrNull() }
+        ?.takeIf { it != Tab.DEBUG }
 
     private fun renderTabs(tab: Tab) {
         tabViews.forEach { (t, tv) -> tv.isSelected = t == tab }
@@ -204,6 +210,7 @@ class StickerKeyboardService : InputMethodService() {
                 Tab.RECENT -> R.string.kb_title_recent
                 Tab.FAVORITES -> R.string.kb_title_favorites
                 Tab.ALL -> R.string.kb_title
+                Tab.DEBUG -> R.string.kb_title_debug
             }
         )
     }
@@ -220,14 +227,19 @@ class StickerKeyboardService : InputMethodService() {
                     recent = library.recent()
                     tab = if (recent.isNotEmpty()) Tab.RECENT else Tab.ALL
                 }
+                val debugItems = GifSizeTest.gridItems(this@StickerKeyboardService)
+                if (tab == Tab.DEBUG && debugItems.isEmpty()) tab = Tab.ALL
                 val items = when (tab) {
                     Tab.RECENT -> recent ?: library.recent()
                     Tab.FAVORITES -> library.favorites()
                     Tab.ALL -> library.all()
+                    Tab.DEBUG -> debugItems
                 }
+                hasDebugTab = debugItems.isNotEmpty()
                 Triple(tab, items, library.favoriteIds())
             }
             currentTab = tab
+            tabViews.getValue(Tab.DEBUG).visibility = if (hasDebugTab) View.VISIBLE else View.GONE
             renderTabs(tab)
             adapter.submit(items, favorites, showStars = tab != Tab.FAVORITES)
             if (!fieldAccepts) return@launch
@@ -236,6 +248,7 @@ class StickerKeyboardService : InputMethodService() {
                     Tab.RECENT -> showMessage(getString(R.string.kb_empty_recent), withButton = false)
                     Tab.FAVORITES -> showMessage(getString(R.string.kb_empty_favorites), withButton = false)
                     Tab.ALL -> if (!app.scans.state.value.running) showMessage(getString(R.string.kb_empty), withButton = false)
+                    Tab.DEBUG -> Unit
                 }
             } else {
                 message.visibility = View.GONE
@@ -247,6 +260,7 @@ class StickerKeyboardService : InputMethodService() {
     /** Long-press menu: add/remove favorite, and "Remove from recent" in the Recent tab. */
     private fun showMenu(item: StickerGridItem, anchor: View) {
         val tab = currentTab ?: return
+        if (GifSizeTest.isDebugItem(item)) return
         scope.launch {
             val isFavorite = withContext(Dispatchers.IO) { item.id in app.library.favoriteIds() }
             val popup = PopupMenu(anchor.context, anchor)
@@ -275,7 +289,29 @@ class StickerKeyboardService : InputMethodService() {
         messageButton.visibility = if (withButton) View.VISIBLE else View.GONE
     }
 
+    /** Debug tab: sends one of the size-test GIFs as-is and logs its size. */
+    private fun insertDebugGif(item: StickerGridItem) {
+        insertJob?.cancel()
+        insertJob = scope.launch {
+            val source = java.io.File(item.documentId)
+            val file = withContext(Dispatchers.IO) {
+                runCatching { StickerInserter.prepareExistingGif(this@StickerKeyboardService, item.id, source) }.getOrNull()
+            } ?: return@launch toast(R.string.kb_insert_error)
+            val ic = currentInputConnection
+            val info = currentInputEditorInfo
+            val ok = ic != null && info != null &&
+                runCatching { StickerInserter.commit(this@StickerKeyboardService, ic, info, file, StickerInserter.GIF_MIME) }.getOrDefault(false)
+            DebugLog.d(
+                this@StickerKeyboardService, DebugLog.GIF,
+                "size test send: ${GifSizeTest.sideOf(item)}px, ${file.length() / 1024} KB, commitContent=$ok " +
+                    "(check the chat: did Instagram accept it?)",
+            )
+            if (!ok) toast(R.string.kb_insert_failed)
+        }
+    }
+
     private fun insert(item: StickerGridItem) {
+        if (GifSizeTest.isDebugItem(item)) return insertDebugGif(item)
         insertJob?.cancel()
         insertJob = scope.launch {
             val file = try {
@@ -363,7 +399,7 @@ class StickerKeyboardService : InputMethodService() {
 
     private fun toast(res: Int) = Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
 
-    private enum class Tab { RECENT, FAVORITES, ALL }
+    private enum class Tab { RECENT, FAVORITES, ALL, DEBUG }
 
     companion object {
         private const val COLUMNS = 4
