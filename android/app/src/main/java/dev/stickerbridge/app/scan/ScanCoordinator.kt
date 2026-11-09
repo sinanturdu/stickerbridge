@@ -80,15 +80,21 @@ class ScanCoordinator(
     fun onFoldersChanged() {
         scope.launch(Dispatchers.IO) {
             mutex.withLock {
-                val uris = StickerFolders.connected(context).map { it.treeUri.toString() }
-                if (uris.isEmpty()) dao.deleteAll() else dao.deleteSourcesExcept(uris)
+                archiveDisconnected()
                 refreshCount(bumpGeneration = true)
             }
         }
     }
 
+    /** Hides (archives) stickers whose folder is no longer connected; records are kept. */
+    private suspend fun archiveDisconnected() {
+        val uris = StickerFolders.connected(context).map { it.treeUri.toString() }
+        if (uris.isEmpty()) dao.archiveAll() else dao.archiveSourcesExcept(uris)
+    }
+
     private suspend fun runScan() {
         _state.update { it.copy(running = true) }
+        archiveDisconnected() // also covers access revoked in system settings
         val folders = StickerFolders.connected(context)
         if (folders.isEmpty()) {
             finish("No folder connected", success = false, changed = false)

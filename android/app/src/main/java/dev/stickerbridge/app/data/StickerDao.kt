@@ -28,6 +28,13 @@ interface StickerDao {
         results.forEach { (id, animated) -> setAnimated(id, animated) }
     }
 
+    /** Visible (not archived) stickers among [ids]; order is not guaranteed. */
+    @Query(
+        "SELECT id, sourceUri, documentId, mime, lastModified, isAnimated FROM sticker_file " +
+            "WHERE archived = 0 AND id IN (:ids)"
+    )
+    suspend fun gridItemsByIds(ids: List<Long>): List<StickerGridItem>
+
     @Query("SELECT COUNT(*) FROM sticker_file WHERE archived = 0")
     suspend fun activeCount(): Int
 
@@ -59,14 +66,16 @@ interface StickerDao {
     @Query("UPDATE sticker_file SET isAnimated = :animated WHERE id = :id")
     suspend fun setAnimated(id: Long, animated: Boolean)
 
-    @Query("DELETE FROM sticker_file WHERE sourceUri = :sourceUri")
-    suspend fun deleteSource(sourceUri: String)
+    /**
+     * Hides stickers of folders that are no longer connected. Rows are archived, not
+     * deleted, so Recent/Favorites records keep pointing at the same ids and the
+     * stickers come back (un-archived by the next scan) if the folder is reconnected.
+     */
+    @Query("UPDATE sticker_file SET archived = 1 WHERE archived = 0 AND sourceUri NOT IN (:sourceUris)")
+    suspend fun archiveSourcesExcept(sourceUris: List<String>)
 
-    @Query("DELETE FROM sticker_file WHERE sourceUri NOT IN (:sourceUris)")
-    suspend fun deleteSourcesExcept(sourceUris: List<String>)
-
-    @Query("DELETE FROM sticker_file")
-    suspend fun deleteAll()
+    @Query("UPDATE sticker_file SET archived = 1 WHERE archived = 0")
+    suspend fun archiveAll()
 
     /** Applies one folder's scan diff atomically. */
     @Transaction
