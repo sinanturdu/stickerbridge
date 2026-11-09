@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick Settings tile icon: a keyboard outline with a small smile key (original, monochrome). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,6h16a2,2 0 0 1 2,2v8a2,2 0 0 1 -2,2h-16a2,2 0 0 1 -2,-2v-8a2,2 0 0 1 2,-2zM4,8v8h16v-8z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,9h2v2h-2zM8,9h2v2h-2zM11,9h2v2h-2zM14,9h2v2h-2zM17,9h2v2h-2zM7,13h7v2h-7z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M15.5,12.5h3v3h-3z" />
+</vector>

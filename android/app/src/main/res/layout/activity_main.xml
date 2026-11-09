@@ -82,6 +82,34 @@
                 android:text="@string/step2_button_business" />
         </LinearLayout>
 
+        <!-- How to switch keyboards -->
+        <LinearLayout style="@style/SbCard">
+
+            <TextView
+                style="@style/SbStepTitle"
+                android:text="@string/switch_title" />
+
+            <TextView
+                style="@style/SbStepBody"
+                android:layout_marginTop="8dp"
+                android:text="@string/switch_navbar" />
+
+            <TextView
+                style="@style/SbStepBody"
+                android:layout_marginTop="8dp"
+                android:text="@string/switch_tile" />
+
+            <TextView
+                style="@style/SbStepBody"
+                android:layout_marginTop="8dp"
+                android:text="@string/switch_shortcut" />
+
+            <TextView
+                style="@style/SbStepBody"
+                android:layout_marginTop="8dp"
+                android:text="@string/switch_back" />
+        </LinearLayout>
+
         <!-- Status -->
         <LinearLayout style="@style/SbCard">
 

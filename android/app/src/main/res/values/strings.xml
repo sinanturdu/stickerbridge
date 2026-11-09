@@ -44,4 +44,12 @@
     <string name="kb_insert_error">Couldn\'t read this sticker</string>
     <string name="kb_gif_badge">GIF</string>
 
-</resources>
+    <!-- Switching keyboards -->
+    <string name="tile_label">StickerBridge</string>
+    <string name="shortcut_switch_short">Sticker keyboard</string>
+    <string name="shortcut_switch_long">Switch to sticker keyboard</string>
+    <string name="switch_title">How to switch keyboards</string>
+    <string name="switch_navbar">• <b>Navigation-bar keyboard button:</b> on Samsung, turn on \"Keyboard button on navigation bar\" (Settings → General management → Keyboard list and default). While typing, tap the small keyboard icon at the bottom right and pick StickerBridge.</string>
+    <string name="switch_tile">• <b>Quick Settings tile:</b> swipe down twice, tap ✎ / \"Edit\", drag the \"StickerBridge\" tile into your tiles. While typing, swipe down and tap it to choose a keyboard.</string>
+    <string name="switch_shortcut">• <b>App shortcut:</b> long-press the StickerBridge app icon and tap \"Switch to sticker keyboard\" (you can drag it to your home screen).</string>
+    <string name="switch_back">In the sticker keyboard, \"◀ Keyboard\" takes you back to your normal keyboard.</string></resources>
