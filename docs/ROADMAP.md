@@ -22,10 +22,10 @@ Rule: critical technical assumptions are proven with small experiments before pr
 - Scan triggers: keyboard opened (max once per 60 s), ↻ refresh button, onboarding screen
 - Keyboard: ◀ back to the previous keyboard, ↻ refresh, 4-column grid ordered by "recently seen"
 - Insertion via `commitContent` as `image/webp` (decided by E1); no stickers in fields without image MIME types (e.g. comments)
-- Animated stickers are sent as-is (Instagram shows the first frame)
+- [x] Animated stickers converted to GIF on tap (libwebp decode + own GIF89a encoder; 1-bit alpha, possible edge halo) — moved from A2
+- [x] Quick Settings tile and launcher shortcut to get back to the sticker keyboard
 
 ### A2 — sending quality and manual add
-- Animated stickers converted to GIF (1-bit alpha, possible edge halo)
 - Static stickers sent as WEBP, with PNG conversion as fallback
 - Note to users that DMs show transparent stickers on a white background
 - Manual add via share menu
