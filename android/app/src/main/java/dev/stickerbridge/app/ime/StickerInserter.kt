@@ -36,6 +36,7 @@ import java.util.UUID
 object StickerInserter {
     const val WEBP_MIME = "image/webp"
     const val GIF_MIME = "image/gif"
+    const val PNG_MIME = "image/png"
     private const val OUTGOING_DIR = "outgoing"
     private const val GIF_CACHE_DIR = "gifcache"
     private const val KEEP_GIF_CACHE = 60
@@ -61,59 +62,94 @@ object StickerInserter {
         }
     }
 
-    /** Copies the source sticker into a unique outgoing file (background thread). */
-    fun copySource(context: Context, source: Uri, id: Long): File {
-        val out = uniqueOutgoing(context, id, "webp")
+    /**
+     * Reads the whole sticker from its SAF document URI (ContentResolver.openInputStream),
+     * the same URI the thumbnails use. Background thread.
+     * Throws [java.io.FileNotFoundException] if the file is no longer in the folder.
+     */
+    fun readSource(context: Context, source: Uri): ByteArray {
         val input = context.contentResolver.openInputStream(source)
-            ?: throw IllegalStateException("cannot open sticker")
-        input.use { i -> out.outputStream().use { o -> i.copyTo(o) } }
+            ?: throw java.io.FileNotFoundException("provider returned no stream")
+        return input.use { it.readBytes() }
+    }
+
+    /** Writes bytes to a unique outgoing file (the file that is shared with the receiving app). */
+    fun writeOutgoing(context: Context, id: Long, bytes: ByteArray, ext: String): File {
+        val out = uniqueOutgoing(context, id, ext)
+        out.writeBytes(bytes)
         return out
     }
 
-    /** Header check (first 64 bytes) of a copied sticker. */
-    fun isAnimatedWebp(file: File): Boolean = try {
-        file.inputStream().use { s ->
-            val head = ByteArray(WebpHeader.PROBE_BYTES)
-            var n = 0
-            while (n < head.size) {
-                val r = s.read(head, n, head.size - n)
-                if (r < 0) break
-                n += r
-            }
-            WebpHeader.isAnimated(head, n)
-        }
-    } catch (e: Exception) {
-        false
-    }
+    /** Header check on the first bytes already read. */
+    fun isAnimatedWebp(bytes: ByteArray): Boolean = WebpHeader.isAnimated(bytes, minOf(bytes.size, WebpHeader.PROBE_BYTES))
 
     /** Outcome of preparing a GIF; [file] is a unique outgoing copy, or null on failure. */
     class GifOutcome(val file: File?, val result: AnimatedStickerConverter.Result?, val fromCache: Boolean, val error: String?)
 
     /**
-     * Returns a unique outgoing GIF for this sticker (background thread). Uses the private
-     * conversion cache (key: folder + documentId + lastModified), converting if needed.
+     * Returns a unique outgoing GIF for this sticker (background thread), converted from the
+     * in-memory WEBP bytes. Uses the private conversion cache (key: folder + documentId +
+     * lastModified). No intermediate file is read.
      */
-    fun prepareGif(context: Context, item: StickerGridItem, webp: File): GifOutcome {
-        val cacheDir = File(context.cacheDir, GIF_CACHE_DIR).apply { mkdirs() }
-        val cached = File(cacheDir, cacheKey(item) + ".gif")
-        var result: AnimatedStickerConverter.Result? = null
-        val fromCache = cached.isFile && cached.length() > 0
-        if (fromCache) {
-            cached.setLastModified(System.currentTimeMillis())
-        } else {
-            trim(cacheDir, KEEP_GIF_CACHE)
-            result = try {
-                AnimatedStickerConverter.convert(webp.readBytes(), cached)
-            } catch (e: OutOfMemoryError) {
-                return GifOutcome(null, null, false, "out of memory")
-            } catch (e: Exception) {
-                return GifOutcome(null, null, false, e.javaClass.simpleName)
-            } ?: return GifOutcome(null, null, false, "not decodable")
+    fun prepareGif(context: Context, item: StickerGridItem, webp: ByteArray): GifOutcome {
+        return try {
+            val cacheDir = File(context.cacheDir, GIF_CACHE_DIR).apply { mkdirs() }
+            val cached = File(cacheDir, cacheKey(item) + ".gif")
+            var result: AnimatedStickerConverter.Result? = null
+            val fromCache = cached.isFile && cached.length() > 0
+            if (fromCache) {
+                cached.setLastModified(System.currentTimeMillis())
+            } else {
+                trim(cacheDir, KEEP_GIF_CACHE)
+                result = AnimatedStickerConverter.convert(webp, cached)
+                    ?: return GifOutcome(null, null, false, "not decodable")
+                if (!cached.isFile) return GifOutcome(null, result, false, "output not written")
+            }
+            val out = uniqueOutgoing(context, item.id, "gif")
+            cached.copyTo(out, overwrite = false)
+            keepDebugCopy(context, out, webp)
+            GifOutcome(out, result, fromCache, null)
+        } catch (e: OutOfMemoryError) {
+            GifOutcome(null, null, false, "out of memory")
+        } catch (e: Exception) {
+            GifOutcome(null, null, false, e.javaClass.simpleName)
         }
-        val out = uniqueOutgoing(context, item.id, "gif")
-        cached.copyTo(out, overwrite = false)
-        keepDebugCopy(context, out, webp)
-        return GifOutcome(out, result, fromCache, null)
+    }
+
+    /**
+     * Still image of the first frame as PNG (fallback when GIF conversion fails or the field
+     * takes no GIF): animated WEBP is never sent, Instagram rejects it. Background thread.
+     */
+    fun prepareStill(context: Context, id: Long, webp: ByteArray): File? {
+        val bitmap = firstFrame(webp) ?: return null
+        return try {
+            val out = uniqueOutgoing(context, id, "png")
+            out.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            out
+        } catch (e: Exception) {
+            null
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    private fun firstFrame(webp: ByteArray): android.graphics.Bitmap? {
+        // libwebp first (works on every API level), platform decoder as fallback.
+        try {
+            dev.stickerbridge.app.convert.WebpAnimDecoder.open(webp)?.use { dec ->
+                val argb = IntArray(dec.width * dec.height)
+                if (dec.next(argb)) {
+                    return android.graphics.Bitmap.createBitmap(argb, dec.width, dec.height, android.graphics.Bitmap.Config.ARGB_8888)
+                }
+            }
+        } catch (e: Throwable) {
+            // fall through
+        }
+        return try {
+            android.graphics.BitmapFactory.decodeByteArray(webp, 0, webp.size)
+        } catch (e: Throwable) {
+            null
+        }
     }
 
     /** Copies a ready-made GIF (debug size test) into a unique outgoing file. */
@@ -152,11 +188,11 @@ object StickerInserter {
      * Debug builds: the last converted GIF (debug/last.gif) and its animated WEBP source
      * (debug/last_source.webp, input for the "GIF size test").
      */
-    private fun keepDebugCopy(context: Context, gif: File, source: File) {
+    private fun keepDebugCopy(context: Context, gif: File, source: ByteArray) {
         val dir = debugDir(context) ?: return
         runCatching {
             gif.copyTo(File(dir, "last.gif"), overwrite = true)
-            source.copyTo(File(dir, DEBUG_SOURCE_NAME), overwrite = true)
+            File(dir, DEBUG_SOURCE_NAME).writeBytes(source)
         }
     }
 

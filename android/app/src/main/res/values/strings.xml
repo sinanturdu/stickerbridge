@@ -53,7 +53,8 @@
     <string name="kb_insert_error">Couldn\'t read this sticker</string>
     <string name="kb_gif_badge">GIF</string>
     <string name="kb_preparing_animated">Preparing animated sticker…</string>
-    <string name="kb_animated_failed">Couldn\'t convert this animated sticker; sending it as a still image</string>
+    <string name="kb_sticker_missing">This sticker is no longer in WhatsApp\'s folder</string>
+    <string name="kb_sent_as_still">Sent as still image</string>
 
     <!-- Keyboard tabs -->
     <string name="kb_tab_recent">Recent</string>

@@ -199,8 +199,15 @@ class StickerAdapter(
         /** sourceUri marker for debug "GIF size test" tiles; documentId is then a local file path. */
         const val DEBUG_SOURCE = "debug-file"
 
-        fun documentUri(item: StickerGridItem): Uri =
-            if (item.sourceUri == DEBUG_SOURCE) Uri.fromFile(File(item.documentId))
-            else DocumentsContract.buildDocumentUriUsingTree(Uri.parse(item.sourceUri), item.documentId)
+        /**
+         * The ONE way every path (thumbnails, header checks, inserts, GIF conversion) opens a
+         * sticker: the SAF document URI built from the stored (treeUri, documentId).
+         * dev.stickerbridge.app.scan.SafUris is its unit-tested pure twin.
+         */
+        fun documentUri(item: StickerGridItem): Uri = documentUri(item.sourceUri, item.documentId)
+
+        fun documentUri(sourceUri: String, documentId: String): Uri =
+            if (sourceUri == DEBUG_SOURCE) Uri.fromFile(File(documentId))
+            else DocumentsContract.buildDocumentUriUsingTree(Uri.parse(sourceUri), documentId)
     }
 }

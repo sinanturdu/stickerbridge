@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView
 import dev.stickerbridge.app.AppSettings
 import dev.stickerbridge.app.DebugLog
 import dev.stickerbridge.app.debug.GifSizeTest
+import dev.stickerbridge.app.scan.SafUris
 import dev.stickerbridge.app.MainActivity
 import dev.stickerbridge.app.R
 import dev.stickerbridge.app.StickerBridgeApp
@@ -37,6 +38,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.FileNotFoundException
 
 /**
  * The "StickerBridge" keyboard: a sticker grid, no letter keys.
@@ -314,60 +316,89 @@ class StickerKeyboardService : InputMethodService() {
         if (GifSizeTest.isDebugItem(item)) return insertDebugGif(item)
         insertJob?.cancel()
         insertJob = scope.launch {
-            val file = try {
-                withContext(Dispatchers.IO) {
-                    StickerInserter.copySource(this@StickerKeyboardService, StickerAdapter.documentUri(item), item.id)
-                }
+            val ctx = this@StickerKeyboardService
+            // Open exactly like the thumbnails: ContentResolver on the stored SAF document URI.
+            val uri = StickerAdapter.documentUri(item)
+            if (DebugLog.isDebuggable(ctx)) {
+                val pureTwin = runCatching { SafUris.documentUri(item.sourceUri, item.documentId) }.getOrNull()
+                DebugLog.d(
+                    ctx, DebugLog.GIF,
+                    "open: method=SAF openInputStream scheme=${uri.scheme} authority=${uri.authority} " +
+                        "doc=…${SafUris.suffix(item.documentId)} pureUriMatch=${pureTwin == uri.toString()}",
+                )
+            }
+            val bytes = try {
+                withContext(Dispatchers.IO) { StickerInserter.readSource(ctx, uri) }
+            } catch (e: FileNotFoundException) {
+                onStickerMissing(item)
+                return@launch
             } catch (e: Exception) {
+                DebugLog.d(ctx, DebugLog.GIF, "open failed: ${e.javaClass.simpleName}")
                 toast(R.string.kb_insert_error)
                 return@launch
             }
-            // Cheap header check (first 64 bytes) of the real file; corrects the stored flag.
-            val animated = withContext(Dispatchers.IO) { StickerInserter.isAnimatedWebp(file) }
+
+            // Header check on the bytes just read; corrects the stored flag.
+            val animated = StickerInserter.isAnimatedWebp(bytes)
             adapter.setAnimated(item.id, animated)
             if (item.isAnimated != animated) {
                 app.appScope.launch(Dispatchers.IO) { app.database.stickerDao().setAnimated(item.id, animated) }
             }
 
-            var sendFile = file
-            var mime = StickerInserter.WEBP_MIME
-            var gifLog: String? = null
-            if (animated && StickerInserter.fieldAcceptsGif(currentInputEditorInfo)) {
-                adapter.setBusy(item.id, true)
-                // Long conversions get a hint after 3 s.
-                val slowHint = launch {
-                    delay(SLOW_CONVERSION_MS)
-                    toast(R.string.kb_preparing_animated)
+            val sendFile: java.io.File
+            val mime: String
+            var log: String? = null
+            if (!animated) {
+                sendFile = withContext(Dispatchers.IO) { StickerInserter.writeOutgoing(ctx, item.id, bytes, "webp") }
+                mime = StickerInserter.WEBP_MIME
+            } else {
+                // Animated: GIF if the field takes GIFs; otherwise, or if conversion fails, a still
+                // PNG of the first frame. Animated WEBP is never sent (Instagram rejects it).
+                var gif: java.io.File? = null
+                var failure: String? = if (StickerInserter.fieldAcceptsGif(currentInputEditorInfo)) null else "field takes no GIF"
+                if (failure == null) {
+                    adapter.setBusy(item.id, true)
+                    val slowHint = launch {
+                        delay(SLOW_CONVERSION_MS)
+                        toast(R.string.kb_preparing_animated)
+                    }
+                    val outcome = try {
+                        withContext(Dispatchers.Default) { StickerInserter.prepareGif(ctx, item, bytes) }
+                    } finally {
+                        slowHint.cancel()
+                        adapter.setBusy(item.id, false)
+                    }
+                    gif = outcome.file
+                    val r = outcome.result
+                    log = when {
+                        gif == null -> null.also { failure = outcome.error ?: "unknown" }
+                        r == null -> "gif from cache: source=${bytes.size / 1024} KB, output=${gif.length() / 1024} KB"
+                        else -> "gif converted: source=${bytes.size / 1024} KB, frames kept=${r.framesKept}/${r.sourceFrames}, " +
+                            "${r.side}px, attempts=${r.attempts}, output=${r.bytes / 1024} KB, ${r.millis} ms"
+                    }
                 }
-                val outcome = try {
-                    withContext(Dispatchers.Default) { StickerInserter.prepareGif(this@StickerKeyboardService, item, file) }
-                } finally {
-                    slowHint.cancel()
-                    adapter.setBusy(item.id, false)
-                }
-                val gif = outcome.file
                 if (gif != null) {
                     sendFile = gif
                     mime = StickerInserter.GIF_MIME
-                    val r = outcome.result
-                    gifLog = if (r == null) {
-                        "cached gif, source=${file.length() / 1024} KB, output=${gif.length() / 1024} KB"
-                    } else {
-                        "converted source=${file.length() / 1024} KB, frames kept=${r.framesKept} dropped=${r.framesDropped}, " +
-                            "side=${r.side}px, attempts=${r.attempts}, output=${r.bytes / 1024} KB, ${r.millis} ms"
-                    }
                 } else {
-                    // Conversion failed: tell the user and send the WEBP (Instagram shows its first frame).
-                    toast(R.string.kb_animated_failed)
-                    gifLog = "conversion failed (${outcome.error}), source=${file.length() / 1024} KB, sending WEBP"
+                    val still = withContext(Dispatchers.Default) { StickerInserter.prepareStill(ctx, item.id, bytes) }
+                    if (still == null) {
+                        DebugLog.d(ctx, DebugLog.GIF, "gif failed ($failure) and still image failed: nothing sent")
+                        toast(R.string.kb_insert_error)
+                        return@launch
+                    }
+                    sendFile = still
+                    mime = StickerInserter.PNG_MIME
+                    log = "gif not used ($failure): sending first frame as PNG, ${still.length() / 1024} KB"
+                    toast(R.string.kb_sent_as_still)
                 }
             }
 
             val ic = currentInputConnection
             val info = currentInputEditorInfo
             val ok = ic != null && info != null &&
-                runCatching { StickerInserter.commit(this@StickerKeyboardService, ic, info, sendFile, mime) }.getOrDefault(false)
-            if (gifLog != null) DebugLog.d(this@StickerKeyboardService, DebugLog.GIF, "$gifLog, mime=$mime, commitContent=$ok")
+                runCatching { StickerInserter.commit(ctx, ic, info, sendFile, mime) }.getOrDefault(false)
+            if (log != null) DebugLog.d(ctx, DebugLog.GIF, "$log, mime=$mime, commitContent=$ok")
             if (!ok) {
                 toast(R.string.kb_insert_failed)
             } else {
@@ -375,6 +406,17 @@ class StickerKeyboardService : InputMethodService() {
                 app.appScope.launch(Dispatchers.IO) { app.library.recordUse(item.id) }
             }
         }
+    }
+
+    /**
+     * The sticker file is gone from WhatsApp's folder: send nothing, tell the user, count the
+     * row as missing (it is archived after the usual complete scans) and start a full scan.
+     */
+    private fun onStickerMissing(item: StickerGridItem) {
+        DebugLog.d(this, DebugLog.GIF, "source missing (FileNotFoundException): nothing sent, full scan requested")
+        toast(R.string.kb_sticker_missing)
+        app.appScope.launch(Dispatchers.IO) { app.database.stickerDao().incrementMissing(listOf(item.id)) }
+        app.scans.request(ScanTrigger.REFRESH_BUTTON)
     }
 
     private fun switchBack() {

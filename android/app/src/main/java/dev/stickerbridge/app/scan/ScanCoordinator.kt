@@ -8,6 +8,7 @@ import dev.stickerbridge.app.DebugLog
 import dev.stickerbridge.app.convert.WebpHeader
 import dev.stickerbridge.app.data.StickerDao
 import dev.stickerbridge.app.data.StickerScanRow
+import dev.stickerbridge.app.ime.StickerAdapter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -221,7 +222,8 @@ class ScanCoordinator(
                     val results = HashMap<Long, Boolean>(rows.size * 2)
                     val buf = ByteArray(WebpHeader.PROBE_BYTES)
                     for (row in rows) {
-                        val uri = DocumentsContract.buildDocumentUriUsingTree(Uri.parse(row.sourceUri), row.documentId)
+                        // Same document URI as thumbnails, inserts and conversion.
+                        val uri = StickerAdapter.documentUri(row.sourceUri, row.documentId)
                         // Unreadable files are marked static; a tap re-checks the real file anyway.
                         results[row.id] = try {
                             context.contentResolver.openInputStream(uri)?.use { s ->
