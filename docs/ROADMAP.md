@@ -14,15 +14,22 @@ Rule: critical technical assumptions are proven with small experiments before pr
 - [ ] **E6** WhatsApp Web IndexedDB inspection
 
 ## Phase 1 — Android v0.1 keyboard (folder source + manual add) ← *next*
-- Keyboard with a customizable sticker key (icon & color chosen by the user)
-- Sticker grid with groups (favorites / packs / all), ↻ refresh button
-- Source: WhatsApp sticker folder via SAF, scanned when the keyboard opens + periodically
+
+### A1 — sticker keyboard MVP (in progress, `android/`)
+- Onboarding: enable the keyboard, connect the WhatsApp (and optional WhatsApp Business) stickers folder via SAF, scan status
+- Local library (Room): one row per file, source `lastModified` shown as "recently seen", own `firstSeenAt`/`lastSeenAt`
+- Scanner: one children query per folder, incremental diff, archive only after 3 complete scans without the file
+- Scan triggers: keyboard opened (max once per 60 s), ↻ refresh button, onboarding screen
+- Keyboard: ◀ back to the previous keyboard, ↻ refresh, 4-column grid ordered by "recently seen"
+- Insertion via `commitContent` as `image/webp` (decided by E1); no stickers in fields without image MIME types (e.g. comments)
+- Animated stickers are sent as-is (Instagram shows the first frame)
+
+### A2 — sending quality and manual add
+- Animated stickers converted to GIF (1-bit alpha, possible edge halo)
+- Static stickers sent as WEBP, with PNG conversion as fallback
+- Note to users that DMs show transparent stickers on a white background
 - Manual add via share menu
-- Insertion into Instagram via `commitContent` (decided by E1):
-  - Animated stickers converted to GIF (1-bit alpha, possible edge halo)
-  - Static stickers sent as WEBP, with PNG conversion as fallback
-  - Sticker buttons hidden when the field advertises no image types (e.g. comments)
-  - Note to users that DMs show transparent stickers on a white background
+- Groups (favorites / packs / all) and a periodic background scan
 - Local library: content-hash deduplication, separate "file" and "collection entry" models
 
 ## Phase 2 — Android v0.2 optional linked-device favorites ← *then*
@@ -36,3 +43,7 @@ Rule: critical technical assumptions are proven with small experiments before pr
 
 ## Phase 4 — Desktop
 - Windows/macOS helper: global hotkey opens the sticker library, click to copy/paste
+
+## Later
+- Full typing keyboard with a customizable sticker key (icon & color chosen by the user) — consider FlorisBoard as a base
+- Add stickers from StickerBridge to WhatsApp via the official sticker API
