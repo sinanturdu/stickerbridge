@@ -6,7 +6,9 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"flag"
 	"fmt"
+	"html/template"
 	"os"
 	"path/filepath"
 	"time"
@@ -14,25 +16,47 @@ import (
 	"go.mau.fi/whatsmeow"
 )
 
+var flagLimit = flag.Int("limit", 0, "with --download: download only the first N favorites (0 = all)")
+
+// galleryItem is one tile of out/favorites/index.html.
+type galleryItem struct {
+	Rank      int
+	ShortID   string
+	Timestamp string
+	Kind      string // webp-static, webp-animated, lottie, other, failed
+	File      string // file name relative to out/favorites/, empty if failed
+}
+
 // downloadAll downloads and decrypts every current favorite into out/favorites/,
-// named by the SHA-256 of the decrypted bytes. Media keys and paths are never printed.
+// named by the SHA-256 of the decrypted bytes, then writes a local HTML gallery.
+// Media keys and paths are never printed.
 func (p *probe) downloadAll() {
-	favs := p.currentFavorites()
+	favs := p.currentFavorites() // same order as the printed table: newest first
+	total := len(favs)
+	if *flagLimit > 0 && *flagLimit < len(favs) {
+		favs = favs[:*flagLimit]
+	}
 	dir := filepath.Join(outDir, "favorites")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		fmt.Println(stamp(), "download: cannot create", dir, err)
 		return
 	}
-	fmt.Printf("%s Downloading %d current favorites into %s ...\n", stamp(), len(favs), dir)
+	fmt.Printf("%s Downloading %d of %d current favorites into %s ...\n", stamp(), len(favs), total, dir)
 
 	ok, failed := 0, 0
 	kinds := map[string]int{}
+	items := make([]galleryItem, 0, len(favs))
 	for i, f := range favs {
+		item := galleryItem{Rank: i + 1, ShortID: short(f.Index), Timestamp: "-", Kind: "failed"}
+		if f.Timestamp.UnixMilli() > 0 {
+			item.Timestamp = f.Timestamp.Format("2006-01-02 15:04:05")
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		data, err := p.downloadOne(ctx, f)
 		cancel()
 		if err != nil {
 			failed++
+			items = append(items, item)
 			fmt.Printf("  [%d/%d] id=%s FAILED: %v\n", i+1, len(favs), short(f.Index), err)
 			continue
 		}
@@ -41,11 +65,14 @@ func (p *probe) downloadAll() {
 		name := hex.EncodeToString(sum[:]) + ext
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
 			failed++
+			items = append(items, item)
 			fmt.Printf("  [%d/%d] id=%s FAILED to write: %v\n", i+1, len(favs), short(f.Index), err)
 			continue
 		}
 		ok++
 		kinds[kind]++
+		item.Kind, item.File = kind, name
+		items = append(items, item)
 		fmt.Printf("  [%d/%d] id=%s ok %s %d bytes -> %s\n", i+1, len(favs), short(f.Index), kind, len(data), short(name))
 	}
 	fmt.Printf("%s Download done: %d ok, %d failed. Types:", stamp(), ok, failed)
@@ -53,6 +80,94 @@ func (p *probe) downloadAll() {
 		fmt.Printf(" %s=%d", k, kinds[k])
 	}
 	fmt.Println()
+
+	indexPath := filepath.Join(dir, "index.html")
+	if err := writeGallery(indexPath, items, total); err != nil {
+		fmt.Println(stamp(), "gallery: cannot write", indexPath, err)
+		return
+	}
+	if abs, err := filepath.Abs(indexPath); err == nil {
+		indexPath = abs
+	}
+	fmt.Println("Gallery:", indexPath)
+	fmt.Println(`Open it with: start out\favorites\index.html`)
+}
+
+var galleryTmpl = template.Must(template.New("gallery").Funcs(template.FuncMap{
+	"label": func(kind string) string {
+		switch kind {
+		case "webp-static":
+			return "static WEBP"
+		case "webp-animated":
+			return "animated WEBP"
+		case "lottie":
+			return "Lottie"
+		case "failed":
+			return "download failed"
+		default:
+			return "other"
+		}
+	},
+}).Parse(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E5 favorites (local)</title>
+<style>
+  body { background: #fff; color: #222; font: 14px/1.4 system-ui, sans-serif; margin: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.note { color: #666; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+  .tile { border: 1px solid #ddd; border-radius: 8px; padding: 8px; background: #fff; }
+  .img { height: 150px; display: flex; align-items: center; justify-content: center; border-radius: 4px;
+         background-color: #fff;
+         background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                           linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%);
+         background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; }
+  .img img { max-width: 100%; max-height: 150px; }
+  .ph { height: 150px; display: flex; align-items: center; justify-content: center; border-radius: 4px;
+        color: #fff; font-weight: 600; }
+  .ph.lottie { background: #999; }
+  .ph.failed { background: #d32f2f; }
+  .rank { font-weight: 700; }
+  .meta { font-size: 12px; color: #555; margin-top: 6px; word-break: break-all; }
+</style>
+</head>
+<body>
+<h1>E5 favorite stickers ({{len .Items}} of {{.Total}}, newest first)</h1>
+<p class="note">Local file generated by <code>go run . --download</code>. Test account only. Do not share or commit.</p>
+<div class="grid">
+{{- range .Items}}
+  <div class="tile">
+    {{- if eq .Kind "failed"}}
+    <div class="ph failed">download failed</div>
+    {{- else if eq .Kind "lottie"}}
+    <div class="ph lottie">Lottie</div>
+    {{- else}}
+    <div class="img"><img src="{{.File}}" alt="#{{.Rank}}" loading="lazy"></div>
+    {{- end}}
+    <div class="meta"><span class="rank">#{{.Rank}}</span> · {{.ShortID}}<br>{{.Timestamp}}<br>{{label .Kind}}</div>
+  </div>
+{{- end}}
+</div>
+</body>
+</html>
+`))
+
+func writeGallery(path string, items []galleryItem, total int) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	err = galleryTmpl.Execute(f, struct {
+		Items []galleryItem
+		Total int
+	}{items, total})
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }
 
 func (p *probe) downloadOne(ctx context.Context, f *favorite) ([]byte, error) {
