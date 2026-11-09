@@ -45,6 +45,15 @@ data class StickerGridItem(
     val documentId: String,
     val mime: String,
     val lastModified: Long,
+    /** null until the header has been checked. */
+    val isAnimated: Boolean?,
+)
+
+/** Row whose animation flag is still unknown. */
+data class StickerHeaderRow(
+    val id: Long,
+    val sourceUri: String,
+    val documentId: String,
 )
 
 /** Row used by the scan diff. */

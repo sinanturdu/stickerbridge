@@ -11,10 +11,22 @@ import dev.stickerbridge.app.scan.DiffResult
 interface StickerDao {
 
     @Query(
-        "SELECT id, sourceUri, documentId, mime, lastModified FROM sticker_file " +
+        "SELECT id, sourceUri, documentId, mime, lastModified, isAnimated FROM sticker_file " +
             "WHERE archived = 0 ORDER BY lastModified DESC, id DESC"
     )
     suspend fun gridItems(): List<StickerGridItem>
+
+    /** Newest rows first, so the visible top of the grid gets its badges first. */
+    @Query(
+        "SELECT id, sourceUri, documentId FROM sticker_file " +
+            "WHERE archived = 0 AND isAnimated IS NULL ORDER BY lastModified DESC, id DESC LIMIT :limit"
+    )
+    suspend fun unknownAnimation(limit: Int): List<StickerHeaderRow>
+
+    @Transaction
+    suspend fun setAnimatedBatch(results: Map<Long, Boolean>) {
+        results.forEach { (id, animated) -> setAnimated(id, animated) }
+    }
 
     @Query("SELECT COUNT(*) FROM sticker_file WHERE archived = 0")
     suspend fun activeCount(): Int

@@ -1,7 +1,10 @@
 package dev.stickerbridge.app.scan
 
 import android.content.Context
+import android.net.Uri
 import android.os.SystemClock
+import android.provider.DocumentsContract
+import dev.stickerbridge.app.convert.WebpHeader
 import dev.stickerbridge.app.data.StickerDao
 import dev.stickerbridge.app.data.StickerScanRow
 import kotlinx.coroutines.CoroutineScope
@@ -9,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -84,7 +88,7 @@ class ScanCoordinator(
     }
 
     private suspend fun runScan() {
-        _state.value = _state.value.copy(running = true)
+        _state.update { it.copy(running = true) }
         val folders = StickerFolders.connected(context)
         if (folders.isEmpty()) {
             finish("No folder connected", success = false, changed = false)
@@ -126,6 +130,62 @@ class ScanCoordinator(
             if (problems.isNotEmpty()) append(" - ").append(problems.joinToString("; "))
         }
         finish(summary, success = allComplete, changed = changed)
+        detectAnimationInBackground()
+    }
+
+    private val headerMutex = Mutex()
+
+    /**
+     * Fills isAnimated for rows where it is still unknown by reading only the first
+     * 64 bytes of each file. Runs after the scan has already reported its result,
+     * so scans stay fast; newest stickers first.
+     */
+    private fun detectAnimationInBackground() {
+        scope.launch(Dispatchers.IO) {
+            if (!headerMutex.tryLock()) return@launch
+            try {
+                var batches = 0
+                while (true) {
+                    val rows = dao.unknownAnimation(HEADER_BATCH)
+                    if (rows.isEmpty()) break
+                    val results = HashMap<Long, Boolean>(rows.size * 2)
+                    val buf = ByteArray(WebpHeader.PROBE_BYTES)
+                    for (row in rows) {
+                        val uri = DocumentsContract.buildDocumentUriUsingTree(Uri.parse(row.sourceUri), row.documentId)
+                        // Unreadable files are marked static; a tap re-checks the real file anyway.
+                        results[row.id] = try {
+                            context.contentResolver.openInputStream(uri)?.use { s ->
+                                val n = s.readNBytesCompat(buf)
+                                WebpHeader.isAnimated(buf, n)
+                            } ?: false
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+                    dao.setAnimatedBatch(results)
+                    batches++
+                    // Refresh badges after the first (top of the grid) batch and then every few batches.
+                    if (batches == 1 || batches % 10 == 0) bumpGeneration()
+                }
+                if (batches > 0) bumpGeneration()
+            } finally {
+                headerMutex.unlock()
+            }
+        }
+    }
+
+    private fun bumpGeneration() {
+        _state.update { it.copy(generation = it.generation + 1) }
+    }
+
+    private fun java.io.InputStream.readNBytesCompat(buf: ByteArray): Int {
+        var total = 0
+        while (total < buf.size) {
+            val n = read(buf, total, buf.size - total)
+            if (n < 0) break
+            total += n
+        }
+        return total
     }
 
     private suspend fun finish(result: String, success: Boolean, changed: Boolean) {
@@ -134,19 +194,20 @@ class ScanCoordinator(
         if (success) editor.putLong(KEY_LAST_SUCCESS, now)
         editor.apply()
         val count = dao.activeCount()
-        _state.value = _state.value.copy(
-            running = false,
-            stickerCount = count,
-            lastResult = result,
-            lastSuccessAt = if (success) now else _state.value.lastSuccessAt,
-            generation = if (changed) _state.value.generation + 1 else _state.value.generation,
-        )
+        _state.update {
+            it.copy(
+                running = false,
+                stickerCount = count,
+                lastResult = result,
+                lastSuccessAt = if (success) now else it.lastSuccessAt,
+                generation = if (changed) it.generation + 1 else it.generation,
+            )
+        }
     }
 
     private suspend fun refreshCount(bumpGeneration: Boolean = false) {
         val count = withContext(Dispatchers.IO) { dao.activeCount() }
-        val s = _state.value
-        _state.value = s.copy(stickerCount = count, generation = if (bumpGeneration) s.generation + 1 else s.generation)
+        _state.update { it.copy(stickerCount = count, generation = if (bumpGeneration) it.generation + 1 else it.generation) }
     }
 
     private fun StickerScanRow.toExisting() =
@@ -154,6 +215,7 @@ class ScanCoordinator(
 
     companion object {
         const val KEYBOARD_THROTTLE_MS = 60_000L
+        private const val HEADER_BATCH = 300
         private const val KEY_LAST_SUCCESS = "last_success_at"
         private const val KEY_LAST_RESULT = "last_result"
     }
