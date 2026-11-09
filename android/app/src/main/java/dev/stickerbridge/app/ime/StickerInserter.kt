@@ -232,12 +232,12 @@ object StickerInserter {
         }
     }
 
-    private fun uniqueOutgoing(context: Context, id: Long, ext: String): File {
+    internal fun uniqueOutgoing(context: Context, id: Long, ext: String): File {
         val dir = File(context.cacheDir, OUTGOING_DIR).apply { mkdirs() }
         return File(dir, "s${id}_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.$ext")
     }
 
-    private fun cacheKey(item: StickerGridItem): String {
+    internal fun cacheKey(item: StickerGridItem): String {
         val digest = MessageDigest.getInstance("SHA-1")
             .digest("${item.sourceUri}|${item.documentId}|${item.lastModified}".toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
