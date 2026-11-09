@@ -13,21 +13,26 @@ A sticker keyboard that shows the stickers from your WhatsApp stickers folder an
 - **Scanner:** one folder listing per scan, incremental diff (new / changed / missing). A file is archived only after 3 consecutive *complete* scans without it; failed or partial scans never count as missing.
   - ↻ and connecting a folder always list every file. Opening the keyboard or the app does nothing if the last complete scan is under 5 minutes old; otherwise it first does a quick check (the folder's own time + number of files) and lists files only if something changed (a full listing still happens at least every 24 h).
   - The grid always shows the saved library immediately; "Syncing…" appears only while files are actually being listed. Unchanged files cause no database writes.
-  - Debug builds log scan timings with tag `SB-Scan` and animated sends with tag `SB-Gif` (`adb logcat -s SB-Scan SB-Gif`). The last converted GIF is kept at `/sdcard/Android/data/dev.stickerbridge.app/files/debug/last.gif`.
+  - Debug builds log scan timings (`SB-Scan`), animated sends (`SB-Gif`) and the focused field's signature/classification (`SB-Field`): `adb logcat -s SB-Scan SB-Gif SB-Field`. The last converted GIF is kept at `/sdcard/Android/data/dev.stickerbridge.app/files/debug/last.gif`.
 - **Keyboard "StickerBridge":**
   - ◀ Keyboard (back to your normal keyboard), ↻ refresh with spinner and last sync time, 4-column grid.
-  - **Tabs** (like WhatsApp): **Recent** (clock), **Favorites** (star), **All** (grid). The last tab you tapped is remembered. If you never tapped one: All on first use, afterwards Recent once it has stickers.
+  - **Tabs** (like WhatsApp): **Recent** (clock), **Favorites** (star), **In chats** (grid). The last tab you tapped is remembered. If you never tapped one: Recent if it has stickers, otherwise In chats.
     - **Recent:** the last 32 different stickers you sent, newest first. Sending one again moves it to the top. Only successful inserts count. The history keeps at most 200 send events.
     - **Favorites:** StickerBridge's own favorites, newest first. (WhatsApp favorites are not read here; merging them is planned for A3 via the experimental linked-device source.)
-    - **All:** every sticker in the connected folder(s), ordered by "recently seen".
-    - Favorites show a small ★ in Recent and All.
+    - **In chats:** every sticker in the connected folder(s) ("Stickers seen in your chats, newest first").
+    - Favorites show a small ★ in Recent and In chats.
+    - Animated stickers play in the grid on Android 9+ (setting "Animate previews", max 12 at once).
     - Stickers that disappear from the folder (archived) or whose folder is disconnected are hidden from Recent and Favorites, but not forgotten: they come back when the file reappears or the folder is reconnected.
   - Tap a sticker to insert it via `commitContent`. A toast appears if the app refuses it.
     - **Static stickers** are sent as `image/webp`.
-    - **Animated stickers** (marked with a small **GIF** badge) are converted to GIF on tap (spinner on the tile) and sent as `image/gif`, because Instagram plays GIF but freezes animated WEBP (E1). If the field does not advertise `image/gif`, or the conversion fails, the WEBP is sent instead.
+    - **Animated stickers** (small **GIF** badge): animated WEBP is never sent (Instagram freezes or rejects it).
+      - **Instagram Story** fields: converted to GIF (spinner on the tile, usually instant thanks to background pre-conversion) and sent as `image/gif`; they animate.
+      - **Instagram DM** fields, and Instagram fields not identified yet: the first frame is sent as a still PNG with transparency, because DMs silently drop GIFs from third-party keyboards (E7). A one-time hint explains this.
+      - **Other apps:** GIF if the field advertises `image/gif`, otherwise a still PNG.
   - Fields that accept no images (e.g. Instagram comments) show "This field doesn't accept stickers".
 - **Animated WEBP → GIF:** decoded with Google's libwebp (v1.5.0, vendored, built with the NDK) through a small JNI bridge; encoded by our own GIF89a encoder (median-cut palette ≤ 255 colors + 1 transparent index, alpha < 50 % = transparent, LZW, delays kept with a 2 cs minimum, infinite loop, disposal "restore to background").
-  - Longest side ≤ 512 px; more than 60 frames are dropped evenly with merged delays; target < 2 MB, retried at 384 and 256 px if larger.
+  - Attempts 320 px / 30 frames, 240 px / 30 frames, 240 px / 20 frames, target ≤ 500 KB; the right attempt is predicted from the source, with at most one retry. One global palette for all frames; dropped frames are decoded but not copied or scaled.
+  - After each successful scan, the first 32 stickers of Recent and Favorites and the 16 newest animated stickers in In chats are pre-converted in the background (cache: 100 MB, LRU).
   - GIFs are cached in the app cache, keyed by document id + last-modified time.
   - The GIF badge appears once the first 64 bytes of a file have been checked. This runs in the background after a scan (newest stickers first), so scans stay fast.
 - **Getting back to the sticker keyboard:** a Quick Settings tile **StickerBridge** and a launcher shortcut **Switch to sticker keyboard** both open the system keyboard picker. The onboarding screen explains all ways to switch.
@@ -92,6 +97,7 @@ The library uses Room with explicit migrations only (no destructive fallback); t
 3. Open the keyboard: All still shows the stickers (no re-scan from zero, count unchanged on the status screen), and Recent/Favorites work. A crash on open means the migration does not match.
 
 ## Current limitations
+- **Instagram DMs: animated stickers are sent as still images** (first frame, PNG with transparency). Instagram silently drops GIFs from third-party keyboards in DMs (E7); in **Stories** they are sent as GIF and animate. The keyboard tells Story and DM fields apart from the field's id and flags; fields it cannot identify yet get the still image. A one-time hint in the keyboard explains this.
 - **GIF quality:** GIF has 1-bit transparency and at most 255 colors per frame, so soft edges can show a slight halo and gradients can band.
 - Lottie stickers are not handled (E0 found only `.webp` files in the stickers folder).
 - **The folder holds stickers seen in your chats, not your WhatsApp favorites.** Favorites are only reachable through the experimental linked-device sync planned for v0.2 (see E5).

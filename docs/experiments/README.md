@@ -8,4 +8,5 @@ Results are written here as text tables — **no screenshots of real chats, no r
 | E0 | [E0-whatsapp-folder.md](E0-whatsapp-folder.md) | adb commands only |
 | E1 | [E1-ime-probe.md](E1-ime-probe.md) | [`experiments/e1-ime-probe/`](../../experiments/e1-ime-probe/) |
 | E5 | [E5-linked-device.md](E5-linked-device.md) — EXPERIMENTAL, test account only | [`experiments/e5-linked-device/`](../../experiments/e5-linked-device/) |
+| E7 | [E7-dm-gif.md](E7-dm-gif.md) — Instagram DMs drop GIFs from third-party keyboards | debug tools in git history (`feature/android-v0.1-a1`) |
 | E2–E4, E6 | planned | – |
