@@ -14,14 +14,4 @@ object AppSettings {
     fun setAnimatePreviews(context: Context, on: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ANIMATE_PREVIEWS, on).apply()
     }
-
-    private const val KEY_DEBUG_LINK_URI = "debug_link_uri"
-
-    /** Debug builds: linkUri used by delivery variant B in the keyboard's Debug tab ("" = none). */
-    fun debugLinkUri(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_DEBUG_LINK_URI, "") ?: ""
-
-    fun setDebugLinkUri(context: Context, value: String) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_DEBUG_LINK_URI, value.trim()).apply()
-    }
 }

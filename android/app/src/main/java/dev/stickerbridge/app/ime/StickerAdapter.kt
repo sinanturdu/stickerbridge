@@ -15,7 +15,6 @@ import androidx.recyclerview.widget.RecyclerView
 import dev.stickerbridge.app.R
 import dev.stickerbridge.app.data.StickerGridItem
 import kotlinx.coroutines.Job
-import java.io.File
 
 /**
  * Grid of stickers. The full list holds only light rows (ids and URIs); thumbnails
@@ -180,11 +179,6 @@ class StickerAdapter(
     private fun bindState(holder: Holder, item: StickerGridItem) {
         val animated = learnedAnimated[item.id] ?: item.isAnimated
         holder.badge.visibility = if (animated == true) View.VISIBLE else View.GONE
-        holder.badge.text = if (item.sourceUri == DEBUG_SOURCE) {
-            dev.stickerbridge.app.debug.GifSizeTest.badgeOf(item) // debug tiles: "240px" or variant "A".."D"
-        } else {
-            holder.badge.context.getString(R.string.kb_gif_badge)
-        }
         holder.busy.visibility = if (item.id in busyIds) View.VISIBLE else View.GONE
         holder.star.visibility = if (showStars && item.id in favoriteIds) View.VISIBLE else View.GONE
     }
@@ -213,9 +207,6 @@ class StickerAdapter(
         private const val PAYLOAD_STATE = "state"
         const val MAX_PLAYING = 12
 
-        /** sourceUri marker for debug "GIF size test" tiles; documentId is then a local file path. */
-        const val DEBUG_SOURCE = "debug-file"
-
         /**
          * The ONE way every path (thumbnails, header checks, inserts, GIF conversion) opens a
          * sticker: the SAF document URI built from the stored (treeUri, documentId).
@@ -224,7 +215,6 @@ class StickerAdapter(
         fun documentUri(item: StickerGridItem): Uri = documentUri(item.sourceUri, item.documentId)
 
         fun documentUri(sourceUri: String, documentId: String): Uri =
-            if (sourceUri == DEBUG_SOURCE) Uri.fromFile(File(documentId))
-            else DocumentsContract.buildDocumentUriUsingTree(Uri.parse(sourceUri), documentId)
+            DocumentsContract.buildDocumentUriUsingTree(Uri.parse(sourceUri), documentId)
     }
 }

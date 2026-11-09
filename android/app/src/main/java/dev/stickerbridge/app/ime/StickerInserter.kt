@@ -174,20 +174,12 @@ object StickerInserter {
         }
     }
 
-    /** Copies a ready-made GIF (debug size test) into a unique outgoing file. */
-    fun prepareExistingGif(context: Context, id: Long, gif: File): File {
-        val out = uniqueOutgoing(context, id, "gif")
-        gif.copyTo(out, overwrite = false)
-        return out
-    }
-
     /** Debug builds only: <external files>/debug (pull with adb). Null in release builds. */
     fun debugDir(context: Context): File? {
         if (!DebugLog.isDebuggable(context)) return null
         return context.getExternalFilesDir("debug")?.apply { mkdirs() }
     }
 
-    const val DEBUG_SOURCE_NAME = "last_source.webp"
 
     /** Must run on the main thread with the current input connection. */
     fun commit(
@@ -196,10 +188,6 @@ object StickerInserter {
         info: EditorInfo,
         file: File,
         mime: String,
-        /** Debug delivery variants only: overrides for the description label / extra MIME / linkUri. */
-        labelOverride: String? = null,
-        extraMimes: List<String> = emptyList(),
-        linkUri: Uri? = null,
     ): Boolean {
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         // The URI must end in the right extension and resolve to the same MIME type we
@@ -207,8 +195,8 @@ object StickerInserter {
         val resolvedType = runCatching { context.contentResolver.getType(uri) }.getOrNull()
         val suffix = uri.lastPathSegment?.substringAfterLast('.', "")?.let { ".$it" } ?: "?"
         DebugLog.d(context, DebugLog.GIF, "commit uri suffix=$suffix resolverType=$resolvedType announced=$mime match=${resolvedType == mime}")
-        val label = labelOverride ?: if (mime == GIF_MIME) "GIF" else "Sticker"
-        val content = InputContentInfoCompat(uri, ClipDescription(label, (listOf(mime) + extraMimes).toTypedArray()), linkUri)
+        val label = if (mime == GIF_MIME) "GIF" else "Sticker"
+        val content = InputContentInfoCompat(uri, ClipDescription(label, arrayOf(mime)), null)
         // The grant is intentionally never released here (no releasePermission()): the
         // receiving app may read the URI after commitContent returns.
         return InputConnectionCompat.commitContent(
@@ -224,7 +212,6 @@ object StickerInserter {
         val dir = debugDir(context) ?: return
         runCatching {
             gif.copyTo(File(dir, "last.gif"), overwrite = true)
-            File(dir, DEBUG_SOURCE_NAME).writeBytes(source)
         }
     }
 

@@ -44,14 +44,6 @@
             android:taskAffinity=""
             android:theme="@style/Theme.StickerBridge.PickerHost" />
 
-        <!-- DEBUG ONLY (finishes immediately in non-debuggable builds): rich-content receive test. -->
-        <activity
-            android:name=".debug.ReceiveTestActivity"
-            android:exported="false"
-            android:label="Receive test"
-            android:theme="@android:style/Theme.Material.Light"
-            android:windowSoftInputMode="adjustResize" />
-
         <!-- Quick Settings tile "StickerBridge" -> keyboard picker. -->
         <service
             android:name=".switcher.KeyboardTileService"
