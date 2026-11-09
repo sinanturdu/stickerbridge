@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="sb_background">#FFF6F7F9</color>
+    <color name="sb_card">#FFFFFFFF</color>
+    <color name="sb_text">#FF1B1F24</color>
+    <color name="sb_text_secondary">#FF5F6B7A</color>
+    <color name="sb_accent">#FF2F6FEB</color>
+    <color name="sb_ok">#FF1E8E3E</color>
+    <color name="sb_warn">#FFB3261E</color>
+    <color name="sb_divider">#FFE3E7EC</color>
+    <color name="sb_kb_background">#FFF1F3F6</color>
+    <color name="sb_kb_bar">#FFFFFFFF</color>
+    <color name="sb_tile">#FFE6E9EE</color>
+    <color name="sb_launcher_bg">#FF2F6FEB</color>
+</resources>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.StickerBridge.Base" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">@color/sb_accent</item>
+        <item name="colorPrimaryDark">@color/sb_background</item>
+        <item name="colorAccent">@color/sb_accent</item>
+        <item name="android:windowBackground">@color/sb_background</item>
+        <item name="android:statusBarColor">@color/sb_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="Theme.StickerBridge" parent="Theme.StickerBridge.Base" />
+
+    <!-- Used for the keyboard view (inflated inside the input method service). -->
+    <style name="Theme.StickerBridge.Keyboard" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorAccent">@color/sb_accent</item>
+    </style>
+
+    <style name="SbCard">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">16dp</item>
+        <item name="android:background">@drawable/card_background</item>
+    </style>
+
+    <style name="SbStepTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/sb_text</item>
+        <item name="android:textSize">17sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="SbStepBody">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:textColor">@color/sb_text_secondary</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="SbStatus" parent="SbStepBody">
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="SbButton" parent="Widget.AppCompat.Button.Colored">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="SbButtonSecondary" parent="Widget.AppCompat.Button.Borderless.Colored">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+</resources>

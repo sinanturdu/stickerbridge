@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/sb_background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="@color/sb_text"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/onboarding_subtitle"
+            android:textColor="@color/sb_text_secondary"
+            android:textSize="14sp" />
+
+        <!-- Step 1 -->
+        <LinearLayout style="@style/SbCard">
+
+            <TextView
+                style="@style/SbStepTitle"
+                android:text="@string/step1_title" />
+
+            <TextView
+                style="@style/SbStepBody"
+                android:text="@string/step1_body" />
+
+            <TextView
+                android:id="@+id/keyboardStatus"
+                style="@style/SbStatus" />
+
+            <Button
+                android:id="@+id/btnEnableKeyboard"
+                style="@style/SbButton"
+                android:text="@string/step1_button" />
+
+            <Button
+                android:id="@+id/btnPickKeyboard"
+                style="@style/SbButtonSecondary"
+                android:text="@string/step1_button_pick" />
+        </LinearLayout>
+
+        <!-- Step 2 -->
+        <LinearLayout style="@style/SbCard">
+
+            <TextView
+                style="@style/SbStepTitle"
+                android:text="@string/step2_title" />
+
+            <TextView
+                style="@style/SbStepBody"
+                android:text="@string/step2_body" />
+
+            <LinearLayout
+                android:id="@+id/folderList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical" />
+
+            <Button
+                android:id="@+id/btnConnectWhatsApp"
+                style="@style/SbButton"
+                android:text="@string/step2_button" />
+
+            <Button
+                android:id="@+id/btnConnectBusiness"
+                style="@style/SbButtonSecondary"
+                android:text="@string/step2_button_business" />
+        </LinearLayout>
+
+        <!-- Status -->
+        <LinearLayout style="@style/SbCard">
+
+            <TextView
+                style="@style/SbStepTitle"
+                android:text="@string/status_title" />
+
+            <TextView
+                android:id="@+id/statusCount"
+                style="@style/SbStepBody" />
+
+            <TextView
+                android:id="@+id/statusLastScan"
+                style="@style/SbStepBody" />
+
+            <TextView
+                android:id="@+id/statusResult"
+                style="@style/SbStepBody" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnScanNow"
+                    style="@style/SbButtonSecondary"
+                    android:layout_width="wrap_content"
+                    android:text="@string/status_scan_now" />
+
+                <ProgressBar
+                    android:id="@+id/scanProgress"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/onboarding_note"
+            android:textColor="@color/sb_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+</ScrollView>
