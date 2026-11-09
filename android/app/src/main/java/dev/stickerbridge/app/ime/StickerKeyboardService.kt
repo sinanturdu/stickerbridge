@@ -65,6 +65,7 @@ class StickerKeyboardService : InputMethodService() {
 
     private lateinit var title: TextView
     private lateinit var hint: TextView
+    private lateinit var notice: TextView
     private lateinit var tabViews: Map<Tab, TextView>
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     /** Tab shown now; null until the first load decides the default. */
@@ -97,6 +98,8 @@ class StickerKeyboardService : InputMethodService() {
         spinner = view.findViewById(R.id.kbSpinner)
         title = view.findViewById(R.id.kbTitle)
         hint = view.findViewById(R.id.kbHint)
+        notice = view.findViewById(R.id.kbNotice)
+        notice.setOnClickListener { notice.visibility = View.GONE }
         tabViews = mapOf(
             Tab.RECENT to view.findViewById(R.id.kbTabRecent),
             Tab.FAVORITES to view.findViewById(R.id.kbTabFavorites),
@@ -142,6 +145,12 @@ class StickerKeyboardService : InputMethodService() {
         if (root == null) return
         adapter.animatePreviews = AppSettings.animatePreviews(this)
         fieldAccepts = StickerInserter.fieldAcceptsImages(info)
+        if (info != null) {
+            // Field signature for classification reports (no typed text; hint truncated).
+            val kind = classifyField(info)
+            val mimes = androidx.core.view.inputmethod.EditorInfoCompat.getContentMimeTypes(info).filterNotNull()
+            DebugLog.d(this, DebugLog.FIELD, FieldClassifier.describe(signatureOf(info), kind, mimes))
+        }
         when {
             !fieldAccepts -> showMessage(getString(R.string.kb_field_no_stickers), withButton = false)
             StickerFolders.connected(this).isEmpty() -> showMessage(getString(R.string.kb_not_connected), withButton = true)
@@ -376,7 +385,14 @@ class StickerKeyboardService : InputMethodService() {
                 // Animated: GIF if the field takes GIFs; otherwise, or if conversion fails, a still
                 // PNG of the first frame. Animated WEBP is never sent (Instagram rejects it).
                 var gif: java.io.File? = null
-                var failure: String? = if (StickerInserter.fieldAcceptsGif(currentInputEditorInfo)) null else "field takes no GIF"
+                // Instagram DMs silently drop GIFs from third-party keyboards (E7); Stories animate them.
+                val kind = classifyField(currentInputEditorInfo)
+                val stillByDesign = kind == FieldKind.DM || kind == FieldKind.UNKNOWN
+                var failure: String? = when {
+                    stillByDesign -> "Instagram $kind field: still image by design (E7)"
+                    StickerInserter.fieldAcceptsGif(currentInputEditorInfo) -> null
+                    else -> "field takes no GIF"
+                }
                 if (failure == null) {
                     adapter.setBusy(item.id, true)
                     val slowHint = launch {
@@ -411,7 +427,7 @@ class StickerKeyboardService : InputMethodService() {
                     sendFile = still
                     mime = StickerInserter.PNG_MIME
                     log = "gif not used ($failure): sending first frame as PNG, ${still.length() / 1024} KB"
-                    toast(R.string.kb_sent_as_still)
+                    if (stillByDesign) showDmStillNoticeOnce() else toast(R.string.kb_sent_as_still)
                 }
             }
 
@@ -438,6 +454,24 @@ class StickerKeyboardService : InputMethodService() {
         toast(R.string.kb_sticker_missing)
         app.appScope.launch(Dispatchers.IO) { app.database.stickerDao().incrementMissing(listOf(item.id)) }
         app.scans.request(ScanTrigger.REFRESH_BUTTON)
+    }
+
+    private fun signatureOf(info: EditorInfo) = FieldSignature(
+        packageName = info.packageName ?: "",
+        fieldId = info.fieldId,
+        inputType = info.inputType,
+        imeOptions = info.imeOptions,
+        hint = info.hintText?.toString(),
+    )
+
+    private fun classifyField(info: EditorInfo?): FieldKind =
+        if (info == null) FieldKind.UNKNOWN else FieldClassifier.classify(signatureOf(info))
+
+    /** One-time notice in the keyboard: DMs get still images, Stories animate. */
+    private fun showDmStillNoticeOnce() {
+        if (prefs.getBoolean(KEY_DM_NOTICE_SHOWN, false)) return
+        prefs.edit().putBoolean(KEY_DM_NOTICE_SHOWN, true).apply()
+        notice.visibility = View.VISIBLE
     }
 
     private val pendingFlags = HashMap<Long, Boolean>()
@@ -484,6 +518,7 @@ class StickerKeyboardService : InputMethodService() {
         private const val COLUMNS = 4
         private const val SLOW_CONVERSION_MS = 3_000L
         private const val FLAG_FLUSH_DELAY_MS = 1_000L
+        private const val KEY_DM_NOTICE_SHOWN = "dm_still_notice_shown"
         private const val PREFS = "keyboard"
         private const val KEY_TAB = "last_tab"
         private const val MENU_FAVORITE = 1

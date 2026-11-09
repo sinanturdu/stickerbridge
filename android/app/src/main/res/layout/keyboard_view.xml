@@ -112,6 +112,21 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- One-time notice (tap to dismiss): DMs get still images, Stories animate. -->
+    <TextView
+        android:id="@+id/kbNotice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFFFF4CE"
+        android:paddingStart="12dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="6dp"
+        android:text="@string/kb_dm_still_notice"
+        android:textColor="@color/sb_text"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
     <!-- One-line hint, shown under the "In chats" tab only. -->
     <TextView
         android:id="@+id/kbHint"

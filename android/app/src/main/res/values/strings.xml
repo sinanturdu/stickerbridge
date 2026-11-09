@@ -56,6 +56,7 @@
     <string name="kb_preparing_animated">Preparing animated sticker…</string>
     <string name="kb_sticker_missing">This sticker is no longer in WhatsApp\'s folder</string>
     <string name="kb_sent_as_still">Sent as still image</string>
+    <string name="kb_dm_still_notice">Instagram DMs show animated stickers as still images. They animate in Stories. (Tap to close)</string>
 
     <!-- Keyboard tabs -->
     <string name="kb_tab_recent">Recent</string>

@@ -8,11 +8,13 @@ import android.util.Log
  * Debug-only logging. Only sizes, counts, timings and step names, never personal data
  * (no file names, no URIs, no typed text). Silent in non-debuggable builds.
  *
- * Tags: "SB-Gif" (animated sends), "SB-Scan" (folder scans), "SB-Switch" (keyboard switching).
+ * Tags: "SB-Gif" (animated sends), "SB-Scan" (folder scans), "SB-Field" (focused field
+ * signature and classification), "SB-Switch" (keyboard switching).
  */
 object DebugLog {
     const val GIF = "SB-Gif"
     const val SCAN = "SB-Scan"
+    const val FIELD = "SB-Field"
 
     fun isDebuggable(context: Context): Boolean =
         context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
