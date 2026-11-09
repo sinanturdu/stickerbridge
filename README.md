@@ -41,7 +41,7 @@ We publish what is verified and what is not. Details and sources: [docs/RESEARCH
 |---|---|
 | Official WhatsApp API to read your sticker collection | **Does not exist.** |
 | Favorites & their order | Stored privately inside WhatsApp. Only reachable through an *unofficial* linked-device method (optional, off by default, account-risk warning). |
-| Android sticker folder | Readable with your permission, but probably contains only stickers seen in chats — not a full mirror of favorites/packs. *(Experiment E0)* |
+| Android sticker folder | Readable with your permission (via the folder picker). Tested on one device: it contains stickers seen in chats, not your favorites — favoriting changes no file. Order shown is an *observed* "recently seen/used" order (file time), not WhatsApp's own. *(E0)* |
 | iOS | No app can read WhatsApp's data on iOS. iOS support = keyboard + manual import + copy/paste. |
 | Instagram's built-in sticker tray | Cannot be extended by third parties. StickerBridge is a **custom keyboard**, not a tray add-on. |
 | Adding a key to Gboard / Samsung Keyboard | Not possible. The sticker key lives in the StickerBridge keyboard. |
@@ -80,7 +80,7 @@ stickerbridge/
 
 | ID | Question | Status |
 |---|---|---|
-| E0 | What is really inside WhatsApp's Android sticker folder? | **Next** |
+| E0 | What is really inside WhatsApp's Android sticker folder? | Done — stickers seen in chats; favorites leave no trace in the folder |
 | E1 | Which image types do Instagram's input fields accept from a keyboard? | Done — DM and Stories accept PNG/WEBP/GIF via `commitContent`; comments accept none |
 | E2 | How does each format look to the recipient (transparency, animation)? | Planned |
 | E3 | Does Instagram "Share to Stories" keep a transparent sticker? | Planned |
