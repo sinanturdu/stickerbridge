@@ -19,7 +19,13 @@ class GifEncoderTest {
     private fun parse(b: ByteArray): ParsedGif {
         assertEquals("GIF89a", String(b, 0, 6, Charsets.US_ASCII))
         val w = u16(b, 6); val h = u16(b, 8)
-        var p = 13 // no global color table
+        var p = 13
+        val lsdPacked = b[10].toInt() and 0xFF
+        val global = if (lsdPacked and 0x80 != 0) {
+            val n = 1 shl ((lsdPacked and 7) + 1)
+            IntArray(n) { i -> ((b[p + 3 * i].toInt() and 0xFF) shl 16) or ((b[p + 3 * i + 1].toInt() and 0xFF) shl 8) or (b[p + 3 * i + 2].toInt() and 0xFF) }
+                .also { p += 3 * n }
+        } else IntArray(0)
         var loop: Int? = null
         var delay = 0; var disposal = 0; var transparent: Int? = null
         val frames = ArrayList<ParsedFrame>()
@@ -44,12 +50,11 @@ class GifEncoderTest {
                     val fw = u16(b, p + 5); val fh = u16(b, p + 7)
                     val packed = b[p + 9].toInt() and 0xFF
                     p += 10
-                    val palette = IntArray(0)
                     val pal = if (packed and 0x80 != 0) {
                         val n = 1 shl ((packed and 7) + 1)
                         IntArray(n) { i -> ((b[p + 3 * i].toInt() and 0xFF) shl 16) or ((b[p + 3 * i + 1].toInt() and 0xFF) shl 8) or (b[p + 3 * i + 2].toInt() and 0xFF) }
                             .also { p += 3 * n }
-                    } else palette
+                    } else global
                     val minCode = b[p].toInt() and 0xFF
                     p++
                     val data = ByteArrayOutputStream()

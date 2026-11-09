@@ -5,11 +5,15 @@ import java.io.OutputStream
 /**
  * Minimal GIF89a encoder (no dependencies).
  *
- * - Every frame is a full-canvas image with its own local color table:
- *   up to 255 colors from median-cut quantization + 1 transparent index.
- * - Pixels with alpha < 50 % become transparent.
- * - Disposal method 2 (restore to background) and a NETSCAPE2.0 loop block.
- * - LZW compression with variable code size, clear code when the table is full.
+ * - Every frame is a full-canvas image with up to 255 colors from median-cut
+ *   quantization + 1 transparent index (255); alpha < 50 % becomes transparent.
+ * - The first frame's palette is written as the Global Color Table (like Pillow and
+ *   gifsicle, for strict decoders); later frames carry a Local Color Table.
+ * - One Graphic Control Extension per frame: disposal 2 (restore to background),
+ *   transparency flag, delay with a 2 cs minimum.
+ * - NETSCAPE2.0 loop block, LZW with min code size 8, trailer 0x3B.
+ *
+ * Verified on the JVM with javax.imageio's GIF reader (GifImageIoTest).
  */
 class GifEncoder(
     private val out: OutputStream,
@@ -25,32 +29,28 @@ class GifEncoder(
     fun addFrame(argb: IntArray, delayCs: Int) {
         require(argb.size >= width * height) { "frame too small" }
         check(!finished) { "already finished" }
-        if (!started) writeHeader()
 
         val quantized = ColorQuantizer.quantize(argb, width * height)
-        val palette = quantized.palette // up to 255 colors
-        val transparentIndex = TRANSPARENT_INDEX
+        val firstFrame = !started
+        if (firstFrame) writeHeader(globalPalette = quantized.palette)
 
         // Graphic Control Extension
         out.write(0x21); out.write(0xF9); out.write(4)
         // packed: reserved(3)=0, disposal(3)=2, user input(1)=0, transparency flag(1)=1
         out.write((2 shl 2) or 1)
         writeShort(delayCs.coerceIn(MIN_DELAY_CS, 65535))
-        out.write(transparentIndex)
+        out.write(TRANSPARENT_INDEX)
         out.write(0)
 
-        // Image Descriptor with local color table of 256 entries (size field 7 -> 2^(7+1))
+        // Image Descriptor: full canvas, not interlaced.
         out.write(0x2C)
         writeShort(0); writeShort(0)
         writeShort(width); writeShort(height)
-        out.write(0x80 or 7)
-
-        // Local color table: palette, padded to 256 entries; the transparent entry is black.
-        for (i in 0 until 256) {
-            val c = if (i < palette.size) palette[i] else 0
-            out.write((c shr 16) and 0xFF)
-            out.write((c shr 8) and 0xFF)
-            out.write(c and 0xFF)
+        if (firstFrame) {
+            out.write(0x00) // uses the Global Color Table
+        } else {
+            out.write(0x80 or 7) // Local Color Table, 2^(7+1) = 256 entries
+            writeColorTable(quantized.palette)
         }
 
         Lzw.encode(quantized.indices, MIN_CODE_SIZE, out)
@@ -59,26 +59,37 @@ class GifEncoder(
     /** Writes the trailer. */
     fun finish() {
         if (finished) return
-        if (!started) writeHeader()
+        if (!started) writeHeader(globalPalette = IntArray(0))
         out.write(0x3B)
         out.flush()
         finished = true
     }
 
-    private fun writeHeader() {
+    private fun writeHeader(globalPalette: IntArray) {
         started = true
         out.write("GIF89a".toByteArray(Charsets.US_ASCII))
-        // Logical Screen Descriptor, no global color table
+        // Logical Screen Descriptor: Global Color Table of 256 entries, 8-bit color resolution.
         writeShort(width); writeShort(height)
-        out.write(0x70) // color resolution 8 bits, no GCT
-        out.write(0)    // background color index
-        out.write(0)    // pixel aspect ratio
+        out.write(0x80 or 0x70 or 7)
+        out.write(TRANSPARENT_INDEX) // background color index = the transparent entry
+        out.write(0)                 // pixel aspect ratio
+        writeColorTable(globalPalette)
         // NETSCAPE2.0 application extension (looping)
         out.write(0x21); out.write(0xFF); out.write(11)
         out.write("NETSCAPE2.0".toByteArray(Charsets.US_ASCII))
         out.write(3); out.write(1)
         writeShort(loopCount.coerceIn(0, 65535))
         out.write(0)
+    }
+
+    /** 256 RGB entries: the palette, padded with black (the transparent entry is 255). */
+    private fun writeColorTable(palette: IntArray) {
+        for (i in 0 until 256) {
+            val c = if (i < palette.size && i != TRANSPARENT_INDEX) palette[i] else 0
+            out.write((c shr 16) and 0xFF)
+            out.write((c shr 8) and 0xFF)
+            out.write(c and 0xFF)
+        }
     }
 
     private fun writeShort(v: Int) {
