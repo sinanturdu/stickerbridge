@@ -46,6 +46,9 @@ screenshots-private/
 *.db-journal
 *.crypt*
 
+# ===== Experiment outputs (sessions, downloaded media) =====
+experiments/e5-linked-device/out/
+
 # ===== Logs =====
 *.log
 logs/
