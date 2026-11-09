@@ -16,12 +16,12 @@ interface StickerDao {
     )
     suspend fun gridItems(): List<StickerGridItem>
 
-    /** Newest rows first, so the visible top of the grid gets its badges first. */
+    /** Newest stickers known to be animated (background GIF pre-conversion). */
     @Query(
-        "SELECT id, sourceUri, documentId FROM sticker_file " +
-            "WHERE archived = 0 AND isAnimated IS NULL ORDER BY lastModified DESC, id DESC LIMIT :limit"
+        "SELECT id, sourceUri, documentId, mime, lastModified, isAnimated FROM sticker_file " +
+            "WHERE archived = 0 AND isAnimated = 1 ORDER BY lastModified DESC, id DESC LIMIT :limit"
     )
-    suspend fun unknownAnimation(limit: Int): List<StickerHeaderRow>
+    suspend fun newestAnimated(limit: Int): List<StickerGridItem>
 
     @Transaction
     suspend fun setAnimatedBatch(results: Map<Long, Boolean>) {
@@ -77,9 +77,13 @@ interface StickerDao {
     @Query("UPDATE sticker_file SET archived = 1 WHERE archived = 0")
     suspend fun archiveAll()
 
-    /** Applies one folder's scan diff atomically. */
+    /**
+     * Applies one folder's scan diff atomically. [animatedByDocId] holds header results for
+     * new/changed files (read during the scan); missing entries stay unknown (null) and are
+     * filled lazily when the tile becomes visible.
+     */
     @Transaction
-    suspend fun applyDiff(sourceUri: String, diff: DiffResult, now: Long) {
+    suspend fun applyDiff(sourceUri: String, diff: DiffResult, now: Long, animatedByDocId: Map<String, Boolean> = emptyMap()) {
         diff.inserts.chunked(CHUNK).forEach { chunk ->
             insertAll(chunk.map {
                 StickerFile(
@@ -89,6 +93,7 @@ interface StickerDao {
                     sizeBytes = it.sizeBytes,
                     lastModified = it.lastModified,
                     mime = it.mime,
+                    isAnimated = animatedByDocId[it.documentId],
                     firstSeenAt = now,
                     lastSeenAt = now,
                 )
@@ -96,6 +101,7 @@ interface StickerDao {
         }
         diff.changed.forEach { (id, doc) ->
             updateChanged(id, doc.displayName, doc.sizeBytes, doc.lastModified, doc.mime, now)
+            animatedByDocId[doc.documentId]?.let { setAnimated(id, it) }
         }
         // SQLite on API 26 allows at most 999 bound variables per statement.
         diff.seen.chunked(CHUNK).forEach { markSeen(it, now) }

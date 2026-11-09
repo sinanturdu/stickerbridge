@@ -37,13 +37,41 @@ class ThumbnailLoader(
 
     fun cached(id: Long): Bitmap? = cache.get(id)
 
-    /** Starts loading; [onLoaded] runs on the main thread. Cancel the returned job when the view is recycled. */
-    fun load(id: Long, uri: Uri, onLoaded: (Bitmap?) -> Unit): Job = scope.launch(Dispatchers.Main) {
-        val bitmap = withContext(decodeDispatcher) {
-            coroutineContext.ensureActive()
-            cache.get(id) ?: decode(uri)?.also { cache.put(id, it) }
+    /** Animation flags learned while decoding thumbnails (lazy flag for rows still unknown). */
+    private val animatedFlags = java.util.concurrent.ConcurrentHashMap<Long, Boolean>()
+
+    /**
+     * Starts loading; [onLoaded] runs on the main thread with the bitmap and, when it could be
+     * learned for free, whether the file is animated (ImageDecoder header on API 28+; a
+     * 64-byte header read on older versions only if [needAnimatedFlag]). Cancel the returned
+     * job when the view is recycled.
+     */
+    fun load(id: Long, uri: Uri, needAnimatedFlag: Boolean = false, onLoaded: (Bitmap?, Boolean?) -> Unit): Job =
+        scope.launch(Dispatchers.Main) {
+            val bitmap = withContext(decodeDispatcher) {
+                coroutineContext.ensureActive()
+                cache.get(id) ?: decode(id, uri)?.also { cache.put(id, it) }
+            }
+            var animated = animatedFlags[id]
+            if (animated == null && needAnimatedFlag && Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                animated = withContext(decodeDispatcher) { readHeaderFlag(uri) }?.also { animatedFlags[id] = it }
+            }
+            onLoaded(bitmap, animated)
         }
-        onLoaded(bitmap)
+
+    private fun readHeaderFlag(uri: Uri): Boolean? = try {
+        resolver.openInputStream(uri)?.use { s ->
+            val head = ByteArray(dev.stickerbridge.app.convert.WebpHeader.PROBE_BYTES)
+            var n = 0
+            while (n < head.size) {
+                val r = s.read(head, n, head.size - n)
+                if (r < 0) break
+                n += r
+            }
+            dev.stickerbridge.app.convert.WebpHeader.isAnimated(head, n)
+        }
+    } catch (e: Exception) {
+        null
     }
 
     /**
@@ -78,8 +106,8 @@ class ThumbnailLoader(
 
     fun clear() = cache.evictAll()
 
-    private fun decode(uri: Uri): Bitmap? = try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) decodeWithImageDecoder(uri) else decodeWithBitmapFactory(uri)
+    private fun decode(id: Long, uri: Uri): Bitmap? = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) decodeWithImageDecoder(id, uri) else decodeWithBitmapFactory(uri)
     } catch (e: Exception) {
         null // unreadable / deleted file: the tile stays empty
     } catch (e: OutOfMemoryError) {
@@ -87,9 +115,10 @@ class ThumbnailLoader(
         null
     }
 
-    private fun decodeWithImageDecoder(uri: Uri): Bitmap {
+    private fun decodeWithImageDecoder(id: Long, uri: Uri): Bitmap {
         val source = ImageDecoder.createSource(resolver, uri)
         return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            animatedFlags[id] = info.isAnimated // free: read from the header the decoder parses anyway
             val w = info.size.width
             val h = info.size.height
             val scale = targetPx.toFloat() / maxOf(w, h, 1)

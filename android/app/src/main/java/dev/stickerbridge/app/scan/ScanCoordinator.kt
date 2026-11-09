@@ -1,9 +1,7 @@
 package dev.stickerbridge.app.scan
 
 import android.content.Context
-import android.net.Uri
 import android.os.SystemClock
-import android.provider.DocumentsContract
 import dev.stickerbridge.app.DebugLog
 import dev.stickerbridge.app.convert.WebpHeader
 import dev.stickerbridge.app.data.StickerDao
@@ -161,20 +159,33 @@ class ScanCoordinator(
             val diff = ScanDiff.diff(existing, listing.docs, listing.complete)
             val diffMs = SystemClock.elapsedRealtime() - t1
 
-            // Only rows that actually changed are written; a typical rescan writes 0 rows.
+            // Animated flag: header (64 bytes) read ONLY for new or changed files, newest first,
+            // capped so a first import stays fast; the rest stays unknown and is filled lazily
+            // when its tile becomes visible. Unchanged rows are never read.
             val t2 = SystemClock.elapsedRealtime()
+            val toProbe = (diff.inserts + diff.changed.map { it.second })
+                .sortedByDescending { it.lastModified }
+                .take(HEADER_READ_CAP)
+            val flags = HashMap<String, Boolean>(toProbe.size * 2)
+            for (doc in toProbe) readAnimatedFlag(folder.treeUri.toString(), doc.documentId)?.let { flags[doc.documentId] = it }
+            val headerMs = SystemClock.elapsedRealtime() - t2
+
+            // Only rows that actually changed are written; a typical rescan writes 0 rows.
+            val t3 = SystemClock.elapsedRealtime()
             if (!diff.isEmpty) {
-                dao.applyDiff(source, diff, System.currentTimeMillis())
+                dao.applyDiff(source, diff, System.currentTimeMillis(), flags)
                 changed = true
             }
-            val dbMs = SystemClock.elapsedRealtime() - t2
+            val dbMs = SystemClock.elapsedRealtime() - t3
 
             if (listing.complete && folderModified > 0) {
                 prefs.edit().putString(stampKey(source), FolderStamp(folderModified, listing.childCount).encode()).apply()
             }
             log(
-                "full ${folder.label}: files=${listing.docs.size} children=${listing.childCount} complete=${listing.complete} " +
-                    "list=$listMs ms, diff=$diffMs ms, db=$dbMs ms, rowsWritten=${diff.rowsWritten}"
+                "full ${folder.label}: files=${listing.docs.size} children=${listing.childCount} complete=${listing.complete} | " +
+                    "listing=$listMs ms (${perFile(listMs, listing.childCount)}/file), " +
+                    "headers=$headerMs ms (${toProbe.size} read, ${diff.inserts.size + diff.changed.size - toProbe.size} left lazy), " +
+                    "diff=$diffMs ms, db=$dbMs ms, rowsWritten=${diff.rowsWritten}"
             )
             seenTotal += listing.docs.size
             newTotal += diff.inserts.size
@@ -193,7 +204,21 @@ class ScanCoordinator(
         }
         log("full scan done: $seenTotal files, $writtenTotal rows written, $ms ms total")
         finish(summary, success = allComplete, changed = changed, durationMs = ms)
-        detectAnimationInBackground()
+    }
+
+    private fun perFile(ms: Long, files: Int): String =
+        if (files <= 0) "-" else String.format(java.util.Locale.US, "%.2f ms", ms.toDouble() / files)
+
+    /** 64-byte header read through the same document URI as everything else; null if unreadable. */
+    private fun readAnimatedFlag(sourceUri: String, documentId: String): Boolean? = try {
+        val uri = StickerAdapter.documentUri(sourceUri, documentId)
+        context.contentResolver.openInputStream(uri)?.use { s ->
+            val buf = ByteArray(WebpHeader.PROBE_BYTES)
+            val n = s.readNBytesCompat(buf)
+            WebpHeader.isAnimated(buf, n)
+        }
+    } catch (e: Exception) {
+        null
     }
 
     private fun savedStamp(source: String): FolderStamp? = FolderStamp.decode(prefs.getString(stampKey(source), null))
@@ -201,58 +226,6 @@ class ScanCoordinator(
     private fun stampKey(source: String) = "stamp_" + Integer.toHexString(source.hashCode()) + "_" + source.length
 
     private fun log(message: String) = DebugLog.d(context, DebugLog.SCAN, message)
-
-    private val headerMutex = Mutex()
-
-    /**
-     * Fills isAnimated for rows where it is still unknown by reading only the first
-     * 64 bytes of each file. Runs after the scan has already reported its result,
-     * so scans stay fast; newest stickers first.
-     */
-    private fun detectAnimationInBackground() {
-        scope.launch(Dispatchers.IO) {
-            if (!headerMutex.tryLock()) return@launch
-            try {
-                var batches = 0
-                val started = SystemClock.elapsedRealtime()
-                var checked = 0
-                while (true) {
-                    val rows = dao.unknownAnimation(HEADER_BATCH)
-                    if (rows.isEmpty()) break
-                    val results = HashMap<Long, Boolean>(rows.size * 2)
-                    val buf = ByteArray(WebpHeader.PROBE_BYTES)
-                    for (row in rows) {
-                        // Same document URI as thumbnails, inserts and conversion.
-                        val uri = StickerAdapter.documentUri(row.sourceUri, row.documentId)
-                        // Unreadable files are marked static; a tap re-checks the real file anyway.
-                        results[row.id] = try {
-                            context.contentResolver.openInputStream(uri)?.use { s ->
-                                val n = s.readNBytesCompat(buf)
-                                WebpHeader.isAnimated(buf, n)
-                            } ?: false
-                        } catch (e: Exception) {
-                            false
-                        }
-                    }
-                    dao.setAnimatedBatch(results)
-                    checked += rows.size
-                    batches++
-                    // Refresh badges after the first (top of the grid) batch and then every few batches.
-                    if (batches == 1 || batches % 10 == 0) bumpGeneration()
-                }
-                if (batches > 0) {
-                    bumpGeneration()
-                    log("header check: $checked files, ${SystemClock.elapsedRealtime() - started} ms")
-                }
-            } finally {
-                headerMutex.unlock()
-            }
-        }
-    }
-
-    private fun bumpGeneration() {
-        _state.update { it.copy(generation = it.generation + 1) }
-    }
 
     private fun java.io.InputStream.readNBytesCompat(buf: ByteArray): Int {
         var total = 0
@@ -291,7 +264,8 @@ class ScanCoordinator(
         ExistingRecord(id, documentId, sizeBytes, lastModified, missingScanCount, archived)
 
     companion object {
-        private const val HEADER_BATCH = 300
+        /** New/changed files whose header is read during a scan; the rest is filled lazily. */
+        private const val HEADER_READ_CAP = 300
         private const val KEY_LAST_SUCCESS = "last_success_at"
         private const val KEY_LAST_RESULT = "last_result"
         private const val KEY_LAST_FULL = "last_full_at"

@@ -109,7 +109,12 @@ class StickerKeyboardService : InputMethodService() {
 
         val cellPx = resources.displayMetrics.widthPixels / COLUMNS
         thumbnails = ThumbnailLoader(contentResolver, scope, cellPx)
-        adapter = StickerAdapter(thumbnails, onClick = { insert(it) }, onLongClick = { item, anchor -> showMenu(item, anchor) })
+        adapter = StickerAdapter(
+            thumbnails,
+            onClick = { insert(it) },
+            onLongClick = { item, anchor -> showMenu(item, anchor) },
+            onAnimatedLearned = { id, animated -> rememberAnimatedFlag(id, animated) },
+        )
         grid.layoutManager = GridLayoutManager(themed, COLUMNS)
         grid.adapter = adapter
         grid.setHasFixedSize(true)
@@ -419,6 +424,22 @@ class StickerKeyboardService : InputMethodService() {
         app.scans.request(ScanTrigger.REFRESH_BUTTON)
     }
 
+    private val pendingFlags = HashMap<Long, Boolean>()
+    private var flagFlushJob: Job? = null
+
+    /** Lazy animation flags from visible tiles, written to the DB in one batch after a short pause. */
+    private fun rememberAnimatedFlag(id: Long, animated: Boolean) {
+        if (id < 0) return // debug tiles
+        pendingFlags[id] = animated
+        if (flagFlushJob?.isActive == true) return
+        flagFlushJob = scope.launch {
+            delay(FLAG_FLUSH_DELAY_MS)
+            val batch = HashMap(pendingFlags)
+            pendingFlags.clear()
+            app.appScope.launch(Dispatchers.IO) { app.database.stickerDao().setAnimatedBatch(batch) }
+        }
+    }
+
     private fun switchBack() {
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         val switched = try {
@@ -446,6 +467,7 @@ class StickerKeyboardService : InputMethodService() {
     companion object {
         private const val COLUMNS = 4
         private const val SLOW_CONVERSION_MS = 3_000L
+        private const val FLAG_FLUSH_DELAY_MS = 1_000L
         private const val PREFS = "keyboard"
         private const val KEY_TAB = "last_tab"
         private const val MENU_FAVORITE = 1

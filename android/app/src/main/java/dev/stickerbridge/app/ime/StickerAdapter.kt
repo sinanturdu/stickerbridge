@@ -32,6 +32,8 @@ class StickerAdapter(
     private val thumbnails: ThumbnailLoader,
     private val onClick: (StickerGridItem) -> Unit,
     private val onLongClick: (StickerGridItem, View) -> Unit,
+    /** Called when a tile's thumbnail decode revealed the animation flag of a row stored as unknown. */
+    private val onAnimatedLearned: (Long, Boolean) -> Unit = { _, _ -> },
 ) : RecyclerView.Adapter<StickerAdapter.Holder>() {
 
     private var items: List<StickerGridItem> = emptyList()
@@ -105,8 +107,18 @@ class StickerAdapter(
             holder.image.setImageBitmap(cached)
         } else {
             holder.image.setImageDrawable(null)
-            holder.job = thumbnails.load(item.id, documentUri(item)) { bitmap ->
+            val unknown = learnedAnimated[item.id] == null && item.isAnimated == null
+            holder.job = thumbnails.load(item.id, documentUri(item), needAnimatedFlag = unknown) { bitmap, animated ->
                 if (holder.boundId == item.id && holder.animated == null) holder.image.setImageBitmap(bitmap)
+                // Lazy animation flag: learned from the visible tile, stored once.
+                if (unknown && animated != null && learnedAnimated[item.id] == null) {
+                    onAnimatedLearned(item.id, animated)
+                    learnedAnimated[item.id] = animated
+                    if (holder.boundId == item.id) {
+                        bindState(holder, item)
+                        if (animated) maybeAnimate(holder, item)
+                    }
+                }
             }
         }
         maybeAnimate(holder, item)
