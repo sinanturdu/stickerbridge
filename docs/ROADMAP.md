@@ -10,7 +10,7 @@ Rule: critical technical assumptions are proven with small experiments before pr
 - [ ] **E2** Send/render matrix (transparency, animation, recipient view)
 - [ ] **E3** Share to Stories with a transparent PNG
 - [ ] **E4** iOS copy/paste tests (manual)
-- [ ] **E5** Linked-device favorites — pending decision (test account only)
+- [ ] **E5** Linked-device favorites — **in progress** (test account only, see experiments/E5-linked-device.md)
 - [ ] **E6** WhatsApp Web IndexedDB inspection
 
 ## Phase 1 — Android v0.1 keyboard ← *next*
