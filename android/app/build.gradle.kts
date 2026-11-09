@@ -44,6 +44,13 @@ android {
     }
 }
 
+ksp {
+    // Room schema history, checked in and used by MigrationSqlTest.
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+android.sourceSets.getByName("test").resources.srcDir("$projectDir/schemas")
+
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")

@@ -3,6 +3,7 @@ package dev.stickerbridge.app
 import android.app.Application
 import android.content.Context
 import dev.stickerbridge.app.data.AppDatabase
+import dev.stickerbridge.app.data.StickerLibrary
 import dev.stickerbridge.app.scan.ScanCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -12,6 +13,7 @@ class StickerBridgeApp : Application() {
     /** Lives as long as the process, so a scan finishes even if the keyboard closes. */
     val appScope = CoroutineScope(SupervisorJob())
     val database: AppDatabase by lazy { AppDatabase.create(this) }
+    val library: StickerLibrary by lazy { StickerLibrary(database) }
     val scans: ScanCoordinator by lazy { ScanCoordinator(this, database.stickerDao(), appScope) }
 
     companion object {
