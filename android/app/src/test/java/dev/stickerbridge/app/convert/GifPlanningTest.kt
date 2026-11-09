@@ -53,13 +53,27 @@ class GifPlanningTest {
     }
 
     @Test
+    fun limitsAreConservativeForInstagram() {
+        assertEquals(320, GifPlanning.MAX_SIDE)
+        assertEquals(30, GifPlanning.MAX_FRAMES)
+        assertEquals(500 * 1024, GifPlanning.TARGET_BYTES)
+        assertEquals(listOf(GifStep(320, 30), GifStep(240, 30), GifStep(240, 20)), GifPlanning.STEPS)
+    }
+
+    @Test
     fun sizeFallbackDecision() {
-        val limit = 2 * 1024 * 1024
-        assertNull(GifPlanning.nextSideOrNull(512, limit, limit))        // fits exactly
-        assertEquals(384, GifPlanning.nextSideOrNull(512, limit + 1, limit))
-        assertEquals(256, GifPlanning.nextSideOrNull(384, limit + 1, limit))
-        assertNull(GifPlanning.nextSideOrNull(256, limit * 3, limit))    // nothing smaller: accept
-        assertEquals(256, GifPlanning.nextSideOrNull(300, limit + 1, limit)) // small canvas
+        val limit = GifPlanning.TARGET_BYTES
+        assertNull(GifPlanning.nextStepOrNull(0, limit, limit))          // fits exactly: keep 320 px / 30
+        assertEquals(1, GifPlanning.nextStepOrNull(0, limit + 1, limit)) // -> 240 px / 30 frames
+        assertEquals(2, GifPlanning.nextStepOrNull(1, limit + 1, limit)) // -> 240 px / 20 frames
+        assertNull(GifPlanning.nextStepOrNull(2, limit * 3, limit))      // nothing smaller: accept
+    }
+
+    @Test
+    fun defaultPlanKeepsAtMost30Frames() {
+        val plan = GifPlanning.planFrames(IntArray(75) { 40 })
+        assertEquals(30, plan.size)
+        assertEquals(300, plan.sumOf { it.delayCs }) // 3 s kept
     }
 
     @Test

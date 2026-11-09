@@ -5,13 +5,23 @@ import kotlin.math.roundToInt
 /** One output GIF frame: which source frame to use and how long to show it. */
 data class PlannedFrame(val sourceIndex: Int, val delayCs: Int)
 
+/** One encoding attempt: longest side and frame cap. */
+data class GifStep(val maxSide: Int, val maxFrames: Int)
+
 /** Pure planning helpers for the WEBP -> GIF conversion (unit-tested). */
 object GifPlanning {
-    const val MAX_FRAMES = 60
-    const val MAX_SIDE = 512
-    const val TARGET_BYTES = 2 * 1024 * 1024
-    /** Sides tried in order when the GIF is too large. */
-    val FALLBACK_SIDES = intArrayOf(512, 384, 256)
+    /**
+     * Instagram rejected our 512 px / up-to-60-frame / up-to-2 MB GIFs from the keyboard
+     * ("Tap the sticker icon to find and send GIFs") but accepted the E1 probe GIF
+     * (52 KB, 4 frames). Limits are therefore conservative and tunable with the
+     * debug "GIF size test".
+     */
+    const val MAX_FRAMES = 30
+    const val MAX_SIDE = 320
+    const val TARGET_BYTES = 500 * 1024
+
+    /** Attempts in order while the GIF is larger than [TARGET_BYTES]. */
+    val STEPS = listOf(GifStep(320, 30), GifStep(240, 30), GifStep(240, 20))
 
     /**
      * Chooses at most [maxFrames] source frames, evenly spaced, and gives each kept frame
@@ -47,13 +57,13 @@ object GifPlanning {
     }
 
     /**
-     * Size fallback: after encoding at [currentSide] produced [bytes], returns the next
-     * smaller side to try, or null to accept the current result (it fits, or no smaller
-     * side is left).
+     * Size fallback: after attempt [stepIndex] of [steps] produced [bytes], returns the index
+     * of the next attempt, or null to accept the current result (it fits, or no attempt is left).
      */
-    fun nextSideOrNull(currentSide: Int, bytes: Int, limit: Int = TARGET_BYTES): Int? {
+    fun nextStepOrNull(stepIndex: Int, bytes: Int, limit: Int = TARGET_BYTES, steps: List<GifStep> = STEPS): Int? {
         if (bytes <= limit) return null
-        return FALLBACK_SIDES.firstOrNull { it < currentSide }
+        val next = stepIndex + 1
+        return if (next < steps.size) next else null
     }
 }
 
