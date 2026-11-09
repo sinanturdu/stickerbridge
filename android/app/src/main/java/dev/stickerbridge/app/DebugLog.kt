@@ -9,12 +9,14 @@ import android.util.Log
  * (no file names, no URIs, no typed text). Silent in non-debuggable builds.
  *
  * Tags: "SB-Gif" (animated sends), "SB-Scan" (folder scans), "SB-Field" (focused field
- * signature and classification), "SB-Switch" (keyboard switching).
+ * signature and classification), "SB-Video" (animated sticker -> MP4 for DMs), "SB-Switch"
+ * (keyboard switching).
  */
 object DebugLog {
     const val GIF = "SB-Gif"
     const val SCAN = "SB-Scan"
     const val FIELD = "SB-Field"
+    const val VIDEO = "SB-Video"
 
     fun isDebuggable(context: Context): Boolean =
         context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0

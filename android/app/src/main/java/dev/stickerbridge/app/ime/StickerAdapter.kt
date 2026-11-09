@@ -125,6 +125,9 @@ class StickerAdapter(
 
     private fun isAnimated(item: StickerGridItem) = (learnedAnimated[item.id] ?: item.isAnimated) == true
 
+    /** True if the sticker is known to be animated (stored flag or learned on screen). */
+    fun isKnownAnimated(item: StickerGridItem): Boolean = isAnimated(item)
+
     private fun maybeAnimate(holder: Holder, item: StickerGridItem) {
         if (!animatePreviews || Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !isAnimated(item)) return
         if (playing.size >= MAX_PLAYING) return

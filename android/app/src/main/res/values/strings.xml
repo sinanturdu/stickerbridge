@@ -50,7 +50,10 @@
     <string name="kb_preparing_animated">Preparing animated sticker…</string>
     <string name="kb_sticker_missing">This sticker is no longer in WhatsApp\'s folder</string>
     <string name="kb_sent_as_still">Sent as still image</string>
-    <string name="kb_dm_still_notice">Instagram DMs show animated stickers as still images. They animate in Stories. (Tap to close)</string>
+    <string name="kb_dm_still_notice">Instagram DMs show animated stickers as still images. Long-press to send as video. (Tap to close)</string>
+    <string name="kb_menu_send_video">Send to DM as video</string>
+    <string name="kb_preparing_video">Preparing video…</string>
+    <string name="kb_video_failed">Couldn&#8217;t create the video</string>
 
     <!-- Keyboard tabs -->
     <string name="kb_tab_recent">Recent</string>

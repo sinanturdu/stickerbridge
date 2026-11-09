@@ -270,7 +270,12 @@ class StickerKeyboardService : InputMethodService() {
             val popup = PopupMenu(anchor.context, anchor)
             popup.menu.add(0, MENU_FAVORITE, 0, if (isFavorite) R.string.kb_menu_remove_favorite else R.string.kb_menu_add_favorite)
             if (tab == Tab.RECENT) popup.menu.add(0, MENU_REMOVE_RECENT, 1, R.string.kb_menu_remove_recent)
+            if (adapter.isKnownAnimated(item)) popup.menu.add(0, MENU_SEND_VIDEO, 2, R.string.kb_menu_send_video)
             popup.setOnMenuItemClickListener { menuItem ->
+                if (menuItem.itemId == MENU_SEND_VIDEO) {
+                    sendAsVideo(item)
+                    return@setOnMenuItemClickListener true
+                }
                 scope.launch {
                     withContext(Dispatchers.IO) {
                         when (menuItem.itemId) {
@@ -419,11 +424,66 @@ class StickerKeyboardService : InputMethodService() {
     private fun classifyField(info: EditorInfo?): FieldKind =
         if (info == null) FieldKind.UNKNOWN else FieldClassifier.classify(signatureOf(info))
 
-    /** One-time notice in the keyboard: DMs get still images, Stories animate. */
+    /**
+     * One-time inline notice after an animated sticker went to a DM as a still image:
+     * "DMs show still images... Long-press to send as video" (E8). Has its own flag, so
+     * users who saw the older notice still see the video hint once.
+     */
     private fun showDmStillNoticeOnce() {
-        if (prefs.getBoolean(KEY_DM_NOTICE_SHOWN, false)) return
-        prefs.edit().putBoolean(KEY_DM_NOTICE_SHOWN, true).apply()
+        if (prefs.getBoolean(KEY_DM_VIDEO_HINT_SHOWN, false)) return
+        prefs.edit().putBoolean(KEY_DM_VIDEO_HINT_SHOWN, true).putBoolean(KEY_DM_NOTICE_SHOWN, true).apply()
+        notice.setText(R.string.kb_dm_still_notice)
         notice.visibility = View.VISIBLE
+    }
+
+    /**
+     * E8: converts an animated sticker to a short MP4 (spinner on the tile) and opens
+     * Instagram's share sheet with it, because DMs drop GIFs inserted by keyboards (E7).
+     */
+    private fun sendAsVideo(item: StickerGridItem) {
+        insertJob?.cancel()
+        insertJob = scope.launch {
+            val ctx = this@StickerKeyboardService
+            val bytes = try {
+                withContext(Dispatchers.IO) { StickerInserter.readSource(ctx, StickerAdapter.documentUri(item)) }
+            } catch (e: FileNotFoundException) {
+                onStickerMissing(item)
+                return@launch
+            } catch (e: Exception) {
+                toast(R.string.kb_insert_error)
+                return@launch
+            }
+            adapter.setBusy(item.id, true)
+            val slowHint = launch {
+                delay(SLOW_CONVERSION_MS)
+                toast(R.string.kb_preparing_video)
+            }
+            val outcome = try {
+                withContext(Dispatchers.Default) { VideoSender.prepare(ctx, item, bytes) }
+            } finally {
+                slowHint.cancel()
+                adapter.setBusy(item.id, false)
+            }
+            val file = outcome.file
+            if (file == null) {
+                DebugLog.d(ctx, DebugLog.VIDEO, "conversion failed (${outcome.error}), source=${bytes.size / 1024} KB")
+                toast(R.string.kb_video_failed)
+                return@launch
+            }
+            val shareResult = VideoSender.share(ctx, file)
+            val r = outcome.result
+            DebugLog.d(
+                ctx, DebugLog.VIDEO,
+                if (r == null) {
+                    "video from cache: ${file.length() / 1024} KB, share=$shareResult"
+                } else {
+                    "video converted: source frames=${r.sourceFrames}, video frames=${r.videoFrames}, loops=${r.loops}, " +
+                        "${r.side}x${r.side}px, duration=${r.durationMs} ms, size=${r.bytes / 1024} KB, ${r.millis} ms, share=$shareResult"
+                },
+            )
+            if (shareResult.startsWith("failed")) toast(R.string.kb_video_failed)
+            else app.appScope.launch(Dispatchers.IO) { app.library.recordUse(item.id) }
+        }
     }
 
     private val pendingFlags = HashMap<Long, Boolean>()
@@ -471,9 +531,11 @@ class StickerKeyboardService : InputMethodService() {
         private const val SLOW_CONVERSION_MS = 3_000L
         private const val FLAG_FLUSH_DELAY_MS = 1_000L
         private const val KEY_DM_NOTICE_SHOWN = "dm_still_notice_shown"
+        private const val KEY_DM_VIDEO_HINT_SHOWN = "dm_video_hint_shown"
         private const val PREFS = "keyboard"
         private const val KEY_TAB = "last_tab"
         private const val MENU_FAVORITE = 1
         private const val MENU_REMOVE_RECENT = 2
+        private const val MENU_SEND_VIDEO = 3
     }
 }
