@@ -45,7 +45,7 @@ We publish what is verified and what is not. Details and sources: [docs/RESEARCH
 | iOS | No app can read WhatsApp's data on iOS. iOS support = keyboard + manual import + copy/paste. |
 | Instagram's built-in sticker tray | Cannot be extended by third parties. StickerBridge is a **custom keyboard**, not a tray add-on. |
 | Adding a key to Gboard / Samsung Keyboard | Not possible. The sticker key lives in the StickerBridge keyboard. |
-| Transparency & animation in Instagram | Tested on one Android device: DMs show stickers on a white card (no transparency); Stories keep transparency. GIF animates in both; animated WEBP stays static, so animated stickers are converted to GIF. iOS/Web recipient view not yet checked. *(E1; E2–E3 pending)* |
+| Transparency & animation in Instagram | Tested on one Android device. **Stories:** stickers keep transparency and animated stickers animate (sent as GIF). **DMs:** stickers appear on a white card, and **animated stickers are sent as still images** — Instagram silently drops GIFs from third-party keyboards in DMs. iOS/Web recipient view not yet checked. *(E1, E7)* |
 
 ## Privacy principles
 
@@ -85,6 +85,7 @@ stickerbridge/
 | E2 | How does each format look to the recipient (transparency, animation)? | Planned |
 | E3 | Does Instagram "Share to Stories" keep a transparent sticker? | Planned |
 | E4 | iOS copy/paste behavior in DM and Stories | Planned |
+| E7 | Can a third-party keyboard send GIFs into Instagram DMs? | Done — no: DMs drop them silently; Stories animate them |
 | E5 | Can favorites be read via linked-device sync (test account only)? | Done — favorites and their real order readable, changes seen in ~1 s; unofficial, account risk |
 | E6 | What does WhatsApp Web store about favorite stickers? | Planned |
 

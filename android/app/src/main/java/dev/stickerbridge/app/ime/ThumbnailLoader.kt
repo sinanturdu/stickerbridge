@@ -1,0 +1,140 @@
+package dev.stickerbridge.app.ime
+
+import android.content.ContentResolver
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.drawable.Animatable
+import android.graphics.drawable.Drawable
+import android.net.Uri
+import android.os.Build
+import android.util.LruCache
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
+
+/**
+ * Decodes small thumbnails off the main thread with downsampling and keeps
+ * them in an LRU memory cache (1/8 of the app heap, by bytes).
+ * Animated stickers show their first frame.
+ */
+class ThumbnailLoader(
+    private val resolver: ContentResolver,
+    private val scope: CoroutineScope,
+    private val targetPx: Int,
+) {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val decodeDispatcher = Dispatchers.IO.limitedParallelism(4)
+
+    private val cache = object : LruCache<Long, Bitmap>((Runtime.getRuntime().maxMemory() / 8).toInt()) {
+        override fun sizeOf(key: Long, value: Bitmap): Int = value.allocationByteCount
+    }
+
+    fun cached(id: Long): Bitmap? = cache.get(id)
+
+    /** Animation flags learned while decoding thumbnails (lazy flag for rows still unknown). */
+    private val animatedFlags = java.util.concurrent.ConcurrentHashMap<Long, Boolean>()
+
+    /**
+     * Starts loading; [onLoaded] runs on the main thread with the bitmap and, when it could be
+     * learned for free, whether the file is animated (ImageDecoder header on API 28+; a
+     * 64-byte header read on older versions only if [needAnimatedFlag]). Cancel the returned
+     * job when the view is recycled.
+     */
+    fun load(id: Long, uri: Uri, needAnimatedFlag: Boolean = false, onLoaded: (Bitmap?, Boolean?) -> Unit): Job =
+        scope.launch(Dispatchers.Main) {
+            val bitmap = withContext(decodeDispatcher) {
+                coroutineContext.ensureActive()
+                cache.get(id) ?: decode(id, uri)?.also { cache.put(id, it) }
+            }
+            var animated = animatedFlags[id]
+            if (animated == null && needAnimatedFlag && Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                animated = withContext(decodeDispatcher) { readHeaderFlag(uri) }?.also { animatedFlags[id] = it }
+            }
+            onLoaded(bitmap, animated)
+        }
+
+    private fun readHeaderFlag(uri: Uri): Boolean? = try {
+        resolver.openInputStream(uri)?.use { s ->
+            val head = ByteArray(dev.stickerbridge.app.convert.WebpHeader.PROBE_BYTES)
+            var n = 0
+            while (n < head.size) {
+                val r = s.read(head, n, head.size - n)
+                if (r < 0) break
+                n += r
+            }
+            dev.stickerbridge.app.convert.WebpHeader.isAnimated(head, n)
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    /**
+     * API 28+: decodes an animated drawable (AnimatedImageDrawable) downsampled to the tile
+     * size. [onLoaded] gets null if the file is not animated or can't be decoded. The
+     * drawable is not cached: each tile owns its own instance while it is on screen.
+     */
+    fun loadAnimated(uri: Uri, onLoaded: (Drawable?) -> Unit): Job = scope.launch(Dispatchers.Main) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            onLoaded(null)
+            return@launch
+        }
+        val drawable = withContext(decodeDispatcher) {
+            coroutineContext.ensureActive()
+            try {
+                val source = ImageDecoder.createSource(resolver, uri)
+                val d = ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
+                    val w = info.size.width
+                    val h = info.size.height
+                    val scale = targetPx.toFloat() / maxOf(w, h, 1)
+                    if (scale < 1f) decoder.setTargetSize(maxOf(1, (w * scale).toInt()), maxOf(1, (h * scale).toInt()))
+                }
+                if (d is Animatable) d else null
+            } catch (e: Exception) {
+                null
+            } catch (e: OutOfMemoryError) {
+                null
+            }
+        }
+        onLoaded(drawable)
+    }
+
+    fun clear() = cache.evictAll()
+
+    private fun decode(id: Long, uri: Uri): Bitmap? = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) decodeWithImageDecoder(id, uri) else decodeWithBitmapFactory(uri)
+    } catch (e: Exception) {
+        null // unreadable / deleted file: the tile stays empty
+    } catch (e: OutOfMemoryError) {
+        cache.evictAll()
+        null
+    }
+
+    private fun decodeWithImageDecoder(id: Long, uri: Uri): Bitmap {
+        val source = ImageDecoder.createSource(resolver, uri)
+        return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            animatedFlags[id] = info.isAnimated // free: read from the header the decoder parses anyway
+            val w = info.size.width
+            val h = info.size.height
+            val scale = targetPx.toFloat() / maxOf(w, h, 1)
+            if (scale < 1f) decoder.setTargetSize(maxOf(1, (w * scale).toInt()), maxOf(1, (h * scale).toInt()))
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            decoder.memorySizePolicy = ImageDecoder.MEMORY_POLICY_LOW_RAM
+        }
+    }
+
+    private fun decodeWithBitmapFactory(uri: Uri): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        var sample = 1
+        val largest = maxOf(bounds.outWidth, bounds.outHeight)
+        while (largest / (sample * 2) >= targetPx) sample *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        return resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
+    }
+}

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="4dp">
+
+    <ImageView
+        android:id="@+id/stickerImage"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:background="@drawable/tile_background"
+        android:contentDescription="@null"
+        android:foreground="?attr/selectableItemBackground"
+        android:padding="4dp"
+        android:scaleType="fitCenter" />
+
+    <ImageView
+        android:id="@+id/stickerStar"
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp"
+        android:contentDescription="@string/kb_tab_favorites"
+        android:src="@drawable/ic_star_badge"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/stickerBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="3dp"
+        android:background="@drawable/badge_background"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:text="@string/kb_gif_badge"
+        android:textColor="#FFFFFFFF"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <ProgressBar
+        android:id="@+id/stickerBusy"
+        style="?android:attr/progressBarStyleSmall"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+</FrameLayout>

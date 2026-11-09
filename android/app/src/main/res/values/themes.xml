@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.StickerBridge.Base" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">@color/sb_accent</item>
+        <item name="colorPrimaryDark">@color/sb_background</item>
+        <item name="colorAccent">@color/sb_accent</item>
+        <item name="android:windowBackground">@color/sb_background</item>
+        <item name="android:statusBarColor">@color/sb_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="Theme.StickerBridge" parent="Theme.StickerBridge.Base" />
+
+    <!-- Used for the keyboard view (inflated inside the input method service). -->
+    <style name="Theme.StickerBridge.Keyboard" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorAccent">@color/sb_accent</item>
+    </style>
+
+    <!-- Fully transparent, no title, no animation, no dim: host for the keyboard picker. -->
+    <style name="Theme.StickerBridge.PickerHost" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="SbKeyboardTab">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/tab_background</item>
+        <item name="android:drawablePadding">6dp</item>
+        <item name="android:drawableTint">@color/tab_content</item>
+        <item name="android:textColor">@color/tab_content</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+    </style>
+
+    <style name="SbCard">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">16dp</item>
+        <item name="android:background">@drawable/card_background</item>
+    </style>
+
+    <style name="SbStepTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/sb_text</item>
+        <item name="android:textSize">17sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="SbStepBody">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:textColor">@color/sb_text_secondary</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="SbStatus" parent="SbStepBody">
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="SbButton" parent="Widget.AppCompat.Button.Colored">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="SbButtonSecondary" parent="Widget.AppCompat.Button.Borderless.Colored">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+</resources>

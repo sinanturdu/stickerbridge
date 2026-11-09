@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StickerBridge</string>
+    <string name="ime_name">StickerBridge</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_subtitle">Your WhatsApp stickers in a keyboard, ready for Instagram.</string>
+    <string name="step1_title">1 · Enable the keyboard</string>
+    <string name="step1_body">Turn on \"StickerBridge\" in the system keyboard list. It has no letter keys and never reads what you type.</string>
+    <string name="step1_button">Open keyboard settings</string>
+    <string name="step1_button_pick">Switch keyboard now</string>
+    <string name="keyboard_enabled">✓ StickerBridge is enabled</string>
+    <string name="keyboard_enabled_default">✓ StickerBridge is enabled and currently selected</string>
+    <string name="keyboard_disabled">StickerBridge is not enabled yet</string>
+    <string name="step2_title">2 · Connect the WhatsApp stickers folder</string>
+    <string name="step2_body">In the folder picker, open \"WhatsApp Stickers\" and tap \"Use this folder\". StickerBridge only gets read access to this one folder.</string>
+    <string name="step2_button">Connect WhatsApp stickers folder</string>
+    <string name="step2_button_business">Also connect WhatsApp Business (optional)</string>
+    <string name="folder_disconnect">Disconnect</string>
+    <string name="folder_unexpected">This doesn\'t look like a WhatsApp stickers folder.</string>
+    <string name="no_folder_connected">No folder connected yet.</string>
+    <string name="folder_picker_failed">Couldn\'t open the folder picker on this device.</string>
+    <string name="status_title">Status</string>
+    <string name="status_count">Stickers: %1$d</string>
+    <string name="status_last_scan">Last successful scan: %1$s</string>
+    <string name="status_last_scan_never">Last successful scan: never</string>
+    <string name="status_result">Last scan: %1$s</string>
+    <string name="status_scan_now">Scan now</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_animate_previews">Animate previews</string>
+    <string name="settings_animate_previews_hint">Play animated stickers in the keyboard (Android 9+). Turn off to save battery.</string>
+    <string name="onboarding_note">The folder holds stickers that appeared in your chats, not your WhatsApp favorites. Order is \"recently seen\" (file time), not WhatsApp\'s own order. Everything stays on this phone.</string>
+
+    <!-- Keyboard -->
+    <string name="kb_back">◀ Keyboard</string>
+    <string name="kb_title">In chats</string>
+    <string name="kb_refresh">↻</string>
+    <string name="kb_refresh_desc">Refresh stickers</string>
+    <string name="kb_synced">Synced %1$s</string>
+    <string name="kb_synced_in">Synced in %1$s · %2$s</string>
+    <string name="kb_never_synced">Not synced yet</string>
+    <string name="kb_syncing">Syncing…</string>
+    <string name="kb_field_no_stickers">This field doesn\'t accept stickers</string>
+    <string name="kb_not_connected">Connect your WhatsApp stickers folder to see stickers here.</string>
+    <string name="kb_open_app">Open StickerBridge</string>
+    <string name="kb_empty">No stickers found in the connected folder.</string>
+    <string name="kb_insert_failed">This app didn\'t accept the sticker</string>
+    <string name="kb_insert_error">Couldn\'t read this sticker</string>
+    <string name="kb_gif_badge">GIF</string>
+    <string name="kb_preparing_animated">Preparing animated sticker…</string>
+    <string name="kb_sticker_missing">This sticker is no longer in WhatsApp\'s folder</string>
+    <string name="kb_sent_as_still">Sent as still image</string>
+    <string name="kb_dm_still_notice">Instagram DMs show animated stickers as still images. They animate in Stories. (Tap to close)</string>
+
+    <!-- Keyboard tabs -->
+    <string name="kb_tab_recent">Recent</string>
+    <string name="kb_tab_favorites">Favorites</string>
+    <string name="kb_tab_all">In chats</string>
+    <string name="kb_hint_in_chats">Stickers seen in your chats, newest first</string>
+    <string name="kb_title_recent">Recently sent</string>
+    <string name="kb_title_favorites">Favorites</string>
+    <string name="kb_empty_recent">Stickers you send will appear here</string>
+    <string name="kb_empty_favorites">Long-press a sticker to add it to favorites</string>
+    <string name="kb_menu_add_favorite">Add to favorites</string>
+    <string name="kb_menu_remove_favorite">Remove from favorites</string>
+    <string name="kb_menu_remove_recent">Remove from recent</string>
+
+    <!-- Switching keyboards -->
+    <string name="tile_label">StickerBridge</string>
+    <string name="tile_subtitle">Switch keyboard</string>
+    <string name="shortcut_switch_short">Sticker keyboard</string>
+    <string name="shortcut_switch_long">Switch to sticker keyboard</string>
+    <string name="switch_title">How to switch keyboards</string>
+    <string name="switch_navbar">• <b>Navigation-bar keyboard button:</b> on Samsung, turn on \"Keyboard button on navigation bar\" (Settings → General management → Keyboard list and default). While typing, tap the small keyboard icon at the bottom right and pick StickerBridge.</string>
+    <string name="switch_tile">• <b>Quick Settings tile:</b> swipe down twice, tap ✎ / \"Edit\", drag the \"StickerBridge\" tile into your tiles. While typing, swipe down and tap it to choose a keyboard.</string>
+    <string name="switch_shortcut">• <b>App shortcut:</b> long-press the StickerBridge app icon and tap \"Switch to sticker keyboard\" (you can drag it to your home screen).</string>
+    <string name="switch_back">In the sticker keyboard, \"◀ Keyboard\" takes you back to your normal keyboard.</string></resources>

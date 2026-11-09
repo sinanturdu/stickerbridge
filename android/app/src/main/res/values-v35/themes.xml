@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A1 keeps the classic (non edge-to-edge) layout on Android 15+. -->
+    <style name="Theme.StickerBridge" parent="Theme.StickerBridge.Base">
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+</resources>

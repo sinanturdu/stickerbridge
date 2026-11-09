@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small yellow star with a dark outline, shown on favorite tiles. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp"
+    android:height="14dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFC107"
+        android:strokeColor="#B3000000"
+        android:strokeWidth="1.5"
+        android:pathData="M12,2.5l2.9,6.1l6.6,0.8l-4.9,4.6l1.3,6.6l-5.9,-3.3l-5.9,3.3l1.3,-6.6l-4.9,-4.6l6.6,-0.8z" />
+</vector>

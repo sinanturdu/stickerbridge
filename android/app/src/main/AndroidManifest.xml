@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  StickerBridge A1. Deliberately requests NO permissions:
+  no INTERNET, no storage permission (folder access is a user-granted SAF tree),
+  no accessibility, no contacts.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:name=".StickerBridgeApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.StickerBridge">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Long-press launcher shortcut "Switch to sticker keyboard". -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <!--
+          Invisible: opens the system keyboard picker, then finishes.
+          Started by the Quick Settings tile (PendingIntent on Android 14+) and by the
+          launcher shortcut. Own task (empty affinity, singleInstance) so it never brings
+          the onboarding screen to the front.
+        -->
+        <activity
+            android:name=".switcher.KeyboardPickerActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/shortcut_switch_short"
+            android:launchMode="singleInstance"
+            android:noHistory="false"
+            android:taskAffinity=""
+            android:theme="@style/Theme.StickerBridge.PickerHost" />
+
+        <!-- Quick Settings tile "StickerBridge" -> keyboard picker. -->
+        <service
+            android:name=".switcher.KeyboardTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_keyboard"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".ime.StickerKeyboardService"
+            android:exported="true"
+            android:label="@string/ime_name"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
+        <!-- Serves the sticker being inserted to the target app via content:// URIs. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simple original mark: a white rounded "sticker" with a folded corner and a smile. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M38,32h24l14,14v24a6,6 0 0 1 -6,6h-32a6,6 0 0 1 -6,-6v-32a6,6 0 0 1 6,-6z" />
+    <path
+        android:fillColor="#FFB8CCF7"
+        android:pathData="M62,32v8a6,6 0 0 0 6,6h8z" />
+    <path
+        android:fillColor="#FF2F6FEB"
+        android:pathData="M44,58a10,10 0 0 0 20,0h-3a7,7 0 0 1 -14,0z" />
+    <path
+        android:fillColor="#FF2F6FEB"
+        android:pathData="M43.5,50a2.5,2.5 0 1 1 5,0a2.5,2.5 0 1 1 -5,0z" />
+    <path
+        android:fillColor="#FF2F6FEB"
+        android:pathData="M59.5,50a2.5,2.5 0 1 1 5,0a2.5,2.5 0 1 1 -5,0z" />
+</vector>
