@@ -19,6 +19,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import dev.stickerbridge.app.DebugLog
 import dev.stickerbridge.app.MainActivity
 import dev.stickerbridge.app.R
 import dev.stickerbridge.app.StickerBridgeApp
@@ -31,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -68,6 +70,12 @@ class StickerKeyboardService : InputMethodService() {
     private var loadJob: Job? = null
     private var stateJob: Job? = null
     private var insertJob: Job? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        // Outgoing sticker files stay readable for the whole session; old ones go at the next start.
+        app.appScope.launch(Dispatchers.IO) { StickerInserter.cleanupOldOutgoing(this@StickerKeyboardService) }
+    }
 
     override fun onCreateInputView(): View {
         val themed = ContextThemeWrapper(this, R.style.Theme_StickerBridge_Keyboard)
@@ -253,7 +261,7 @@ class StickerKeyboardService : InputMethodService() {
         insertJob = scope.launch {
             val file = try {
                 withContext(Dispatchers.IO) {
-                    StickerInserter.copyToCache(this@StickerKeyboardService, StickerAdapter.documentUri(item), item.id)
+                    StickerInserter.copySource(this@StickerKeyboardService, StickerAdapter.documentUri(item), item.id)
                 }
             } catch (e: Exception) {
                 toast(R.string.kb_insert_error)
@@ -268,24 +276,43 @@ class StickerKeyboardService : InputMethodService() {
 
             var sendFile = file
             var mime = StickerInserter.WEBP_MIME
+            var gifLog: String? = null
             if (animated && StickerInserter.fieldAcceptsGif(currentInputEditorInfo)) {
                 adapter.setBusy(item.id, true)
-                val gif = try {
-                    withContext(Dispatchers.Default) { StickerInserter.gifFor(this@StickerKeyboardService, item, file) }
+                // Long conversions get a hint after 3 s.
+                val slowHint = launch {
+                    delay(SLOW_CONVERSION_MS)
+                    toast(R.string.kb_preparing_animated)
+                }
+                val outcome = try {
+                    withContext(Dispatchers.Default) { StickerInserter.prepareGif(this@StickerKeyboardService, item, file) }
                 } finally {
+                    slowHint.cancel()
                     adapter.setBusy(item.id, false)
                 }
+                val gif = outcome.file
                 if (gif != null) {
                     sendFile = gif
                     mime = StickerInserter.GIF_MIME
+                    val r = outcome.result
+                    gifLog = if (r == null) {
+                        "cached gif, source=${file.length() / 1024} KB, output=${gif.length() / 1024} KB"
+                    } else {
+                        "converted source=${file.length() / 1024} KB, frames kept=${r.framesKept} dropped=${r.framesDropped}, " +
+                            "side=${r.side}px, attempts=${r.attempts}, output=${r.bytes / 1024} KB, ${r.millis} ms"
+                    }
+                } else {
+                    // Conversion failed: tell the user and send the WEBP (Instagram shows its first frame).
+                    toast(R.string.kb_animated_failed)
+                    gifLog = "conversion failed (${outcome.error}), source=${file.length() / 1024} KB, sending WEBP"
                 }
-                // gif == null: conversion failed -> send the WEBP (Instagram shows the first frame).
             }
 
             val ic = currentInputConnection
             val info = currentInputEditorInfo
             val ok = ic != null && info != null &&
                 runCatching { StickerInserter.commit(this@StickerKeyboardService, ic, info, sendFile, mime) }.getOrDefault(false)
+            if (gifLog != null) DebugLog.d(this@StickerKeyboardService, DebugLog.GIF, "$gifLog, mime=$mime, commitContent=$ok")
             if (!ok) {
                 toast(R.string.kb_insert_failed)
             } else {
@@ -321,6 +348,7 @@ class StickerKeyboardService : InputMethodService() {
 
     companion object {
         private const val COLUMNS = 4
+        private const val SLOW_CONVERSION_MS = 3_000L
         private const val PREFS = "keyboard"
         private const val KEY_TAB = "last_tab"
         private const val MENU_FAVORITE = 1

@@ -12,15 +12,28 @@ import java.io.File
  */
 object AnimatedStickerConverter {
 
-    class Result(val bytes: Int, val side: Int, val frames: Int)
+    /** Sizes and timings only (for the SB-Gif debug log). */
+    class Result(
+        val bytes: Int,
+        val side: Int,
+        val framesKept: Int,
+        val sourceFrames: Int,
+        val attempts: Int,
+        val millis: Long,
+    ) {
+        val framesDropped: Int get() = sourceFrames - framesKept
+    }
 
     /** Returns null if the WEBP cannot be decoded (caller then sends the WEBP). */
     fun convert(webp: ByteArray, out: File): Result? {
+        val started = System.nanoTime()
         WebpAnimDecoder.open(webp)?.use { dec ->
             if (dec.width <= 0 || dec.height <= 0 || dec.frameCount <= 0) return null
             val plan = GifPlanning.planFrames(dec.durationsMs)
             var side = minOf(GifPlanning.MAX_SIDE, maxOf(dec.width, dec.height))
+            var attempts = 0
             while (true) {
+                attempts++
                 val bytes = encode(dec, plan, side)
                 val next = GifPlanning.nextSideOrNull(side, bytes.size)
                 if (next == null) {
@@ -30,7 +43,8 @@ object AnimatedStickerConverter {
                         out.delete()
                         tmp.renameTo(out)
                     }
-                    return Result(bytes.size, side, plan.size)
+                    val ms = (System.nanoTime() - started) / 1_000_000
+                    return Result(bytes.size, side, plan.size, dec.frameCount, attempts, ms)
                 }
                 side = next
                 dec.reset()
