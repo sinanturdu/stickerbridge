@@ -31,7 +31,7 @@ A sticker keyboard that shows the stickers from your WhatsApp stickers folder an
       - **Other apps:** GIF if the field advertises `image/gif`, otherwise a still PNG.
   - Fields that accept no images (e.g. Instagram comments) show "This field doesn't accept stickers".
 - **Animated WEBP → GIF:** decoded with Google's libwebp (v1.5.0, vendored, built with the NDK) through a small JNI bridge; encoded by our own GIF89a encoder (median-cut palette ≤ 255 colors + 1 transparent index, alpha < 50 % = transparent, LZW, delays kept with a 2 cs minimum, infinite loop, disposal "restore to background").
-  - Attempts 320 px / 30 frames, 240 px / 30 frames, 240 px / 20 frames, target ≤ 500 KB; the right attempt is predicted from the source, with at most one retry. One global palette for all frames; dropped frames are decoded but not copied or scaled.
+  - Story profile (Instagram Stories and other apps that accept GIFs): 480 px, up to 60 frames (dropped evenly only above that), <= 4 MB, one retry at 360 px. Frame delays keep the source timing (rounding carried over, minimum 2 cs). One global palette for all frames; dropped frames are decoded but not copied or scaled.
   - After each successful scan, the first 32 stickers of Recent and Favorites and the 16 newest animated stickers in In chats are pre-converted in the background (cache: 100 MB, LRU).
   - GIFs are cached in the app cache, keyed by document id + last-modified time.
   - The GIF badge appears once the first 64 bytes of a file have been checked. This runs in the background after a scan (newest stickers first), so scans stay fast.

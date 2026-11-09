@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import dev.stickerbridge.app.AppSettings
 import dev.stickerbridge.app.DebugLog
+import dev.stickerbridge.app.convert.GifProfiles
 import dev.stickerbridge.app.scan.SafUris
 import dev.stickerbridge.app.MainActivity
 import dev.stickerbridge.app.R
@@ -336,7 +337,8 @@ class StickerKeyboardService : InputMethodService() {
                 var gif: java.io.File? = null
                 // Instagram DMs silently drop GIFs from third-party keyboards (E7); Stories animate them.
                 val kind = classifyField(currentInputEditorInfo)
-                val stillByDesign = kind == FieldKind.DM || kind == FieldKind.UNKNOWN
+                val profile = GifProfiles.forField(kind) // STORY / other apps: story profile; DM / UNKNOWN: none
+                val stillByDesign = profile == null
                 var failure: String? = when {
                     stillByDesign -> "Instagram $kind field: still image by design (E7)"
                     StickerInserter.fieldAcceptsGif(currentInputEditorInfo) -> null
@@ -349,7 +351,7 @@ class StickerKeyboardService : InputMethodService() {
                         toast(R.string.kb_preparing_animated)
                     }
                     val outcome = try {
-                        withContext(Dispatchers.Default) { StickerInserter.prepareGif(ctx, item, bytes) }
+                        withContext(Dispatchers.Default) { StickerInserter.prepareGif(ctx, item, bytes, profile!!) }
                     } finally {
                         slowHint.cancel()
                         adapter.setBusy(item.id, false)

@@ -11,8 +11,9 @@ import java.io.File
  *   but dropped frames are decoded natively without being copied or scaled ([WebpAnimDecoder.skip]).
  * - Each kept frame is downscaled once; ONE global palette is built from all kept frames
  *   (fast 5:5:5 median cut) and shared by every frame (one color table, smaller file).
- * - The attempt (size/frames) is predicted from the source ([GifPlanning.chooseStep]);
- *   at most one retry with the next smaller attempt.
+ * - Size, frame cap and byte target come from a [GifProfile] (Stories: 480 px, up to 60
+ *   frames, <= 4 MB); the first attempt always runs, at most one retry with the next one.
+ * - Frame delays keep the source timing (rounding carried over, see [GifPlanning.delaysCs]).
  */
 object AnimatedStickerConverter {
 
@@ -33,19 +34,15 @@ object AnimatedStickerConverter {
     private class Encoded(val bytes: ByteArray, val side: Int, val frames: Int, val decodeMs: Long, val encodeMs: Long)
 
     /** Returns null if the WEBP cannot be decoded (caller then sends a still image). */
-    fun convert(
-        webp: ByteArray,
-        out: File,
-        steps: List<GifStep> = GifPlanning.STEPS,
-        limit: Int = GifPlanning.TARGET_BYTES,
-    ): Result? {
+    fun convert(webp: ByteArray, out: File, profile: GifProfile = GifProfiles.STORY): Result? {
         val started = System.nanoTime()
+        val steps = profile.steps
+        val limit = profile.targetBytes
         WebpAnimDecoder.open(webp)?.use { dec ->
             if (dec.width <= 0 || dec.height <= 0 || dec.frameCount <= 0) return null
-            val first = GifPlanning.chooseStep(dec.width, dec.height, dec.frameCount, limit, steps)
-            var encoded = encode(dec, steps[first])
+            var encoded = encode(dec, steps[0])
             var attempts = 1
-            val retry = GifPlanning.nextStepOrNull(first, encoded.bytes.size, limit, steps)
+            val retry = GifPlanning.nextStepOrNull(0, encoded.bytes.size, limit, steps)
             if (retry != null) { // at most one retry
                 dec.reset()
                 encoded = encode(dec, steps[retry])
@@ -57,10 +54,6 @@ object AnimatedStickerConverter {
         }
         return null
     }
-
-    /** One fixed size, no size target (debug "GIF size test"). */
-    fun convertFixed(webp: ByteArray, out: File, side: Int, maxFrames: Int = GifPlanning.MAX_FRAMES): Result? =
-        convert(webp, out, listOf(GifStep(side, maxFrames)), limit = Int.MAX_VALUE)
 
     private fun writeAtomically(out: File, bytes: ByteArray) {
         val tmp = File(out.parentFile, out.name + ".tmp")

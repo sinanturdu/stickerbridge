@@ -43,7 +43,7 @@ class GifPreconverter(
                 var cached = 0
                 var skipped = 0
                 for (item in candidates) {
-                    if (StickerInserter.isGifCached(context, item)) {
+                    if (StickerInserter.isGifCached(context, item, PROFILE)) {
                         cached++
                         continue
                     }
@@ -70,13 +70,15 @@ class GifPreconverter(
         if (item.isAnimated != animated) dao.setAnimated(item.id, animated)
         if (!animated) return false
         return try {
-            StickerInserter.ensureCachedGif(context, item, bytes).first != null
+            StickerInserter.ensureCachedGif(context, item, bytes, PROFILE).first != null
         } catch (e: Throwable) {
             false
         }
     }
 
     companion object {
+        /** GIFs are only sent where they animate (Stories, other apps), so pre-convert with that profile. */
+        private val PROFILE = GifProfiles.STORY
         private const val TOP_N = 32
         private const val NEWEST_ANIMATED = 16
     }

@@ -1,5 +1,6 @@
 package dev.stickerbridge.app.convert
 
+import dev.stickerbridge.app.ime.FieldKind
 import kotlin.math.roundToInt
 
 /** One output GIF frame: which source frame to use and how long to show it. */
@@ -8,28 +9,45 @@ data class PlannedFrame(val sourceIndex: Int, val delayCs: Int)
 /** One encoding attempt: longest side and frame cap. */
 data class GifStep(val maxSide: Int, val maxFrames: Int)
 
+/**
+ * GIF quality profile for a target. [steps] are tried in order: the first always, the next
+ * only if the output is larger than [targetBytes] (at most one retry). [cacheTag] is part
+ * of the GIF cache key, so GIFs made with different profiles never mix.
+ */
+data class GifProfile(val name: String, val steps: List<GifStep>, val targetBytes: Int, val cacheTag: String)
+
+object GifProfiles {
+    /**
+     * Instagram Stories (and other apps that accept GIFs): smooth motion first.
+     * 480 px, up to 60 frames (dropped evenly only above that), <= 4 MB, one retry at 360 px.
+     */
+    val STORY = GifProfile(
+        name = "story",
+        steps = listOf(GifStep(480, 60), GifStep(360, 60)),
+        targetBytes = 4 * 1024 * 1024,
+        cacheTag = "story480",
+    )
+
+    /**
+     * Profile for a field, or null when the sticker must be sent as a still image
+     * (Instagram DMs drop keyboard GIFs, E7; unidentified Instagram fields play safe).
+     * Other apps get a GIF only if their field advertises image/gif (checked by the caller).
+     */
+    fun forField(kind: FieldKind): GifProfile? = when (kind) {
+        FieldKind.STORY, FieldKind.OTHER_APP -> STORY
+        FieldKind.DM, FieldKind.UNKNOWN -> null
+    }
+}
+
 /** Pure planning helpers for the WEBP -> GIF conversion (unit-tested). */
 object GifPlanning {
-    /**
-     * Instagram rejected our 512 px / up-to-60-frame / up-to-2 MB GIFs from the keyboard
-     * ("Tap the sticker icon to find and send GIFs") but accepted the E1 probe GIF
-     * (52 KB, 4 frames). Limits are therefore conservative and tunable with the
-     * debug "GIF size test".
-     */
-    const val MAX_FRAMES = 30
-    const val MAX_SIDE = 320
-    const val TARGET_BYTES = 500 * 1024
-
-    /** Attempts in order while the GIF is larger than [TARGET_BYTES]. */
-    val STEPS = listOf(GifStep(320, 30), GifStep(240, 30), GifStep(240, 20))
 
     /**
-     * Chooses at most [maxFrames] source frames, evenly spaced, and gives each kept frame
-     * the total duration of the source frames it replaces, so the animation keeps its speed.
-     * Delays are computed from rounded cumulative times (no drift) and are at least
-     * [GifEncoder.MIN_DELAY_CS] centiseconds (browsers treat smaller delays as ~10 cs).
+     * Chooses at most [maxFrames] source frames (all of them if there are not more), evenly
+     * spaced, and gives each kept frame the total duration of the source frames it replaces.
+     * Delays: see [delaysCs].
      */
-    fun planFrames(durationsMs: IntArray, maxFrames: Int = MAX_FRAMES): List<PlannedFrame> {
+    fun planFrames(durationsMs: IntArray, maxFrames: Int): List<PlannedFrame> {
         val n = durationsMs.size
         if (n == 0) return emptyList()
         val kept: IntArray = if (n <= maxFrames) {
@@ -37,15 +55,37 @@ object GifPlanning {
         } else {
             IntArray(maxFrames) { i -> (i.toLong() * n / maxFrames).toInt() }
         }
-        // Cumulative start time (ms) of every source frame, plus the total.
-        val start = LongArray(n + 1)
-        for (i in 0 until n) start[i + 1] = start[i] + durationsMs[i].coerceAtLeast(0)
-        return kept.mapIndexed { i, src ->
+        // Duration of each kept frame in ms = sum of the source frames it stands for.
+        val keptMs = LongArray(kept.size) { i ->
             val end = if (i + 1 < kept.size) kept[i + 1] else n
-            val fromCs = (start[src] / 10.0).roundToInt()
-            val toCs = (start[end] / 10.0).roundToInt()
-            PlannedFrame(src, (toCs - fromCs).coerceAtLeast(GifEncoder.MIN_DELAY_CS))
+            var sum = 0L
+            for (j in kept[i] until end) sum += durationsMs[j].coerceAtLeast(0)
+            sum
         }
+        val cs = delaysCs(keptMs)
+        return kept.mapIndexed { i, src -> PlannedFrame(src, cs[i]) }
+    }
+
+    /**
+     * Converts frame durations (ms) to GIF delays (centiseconds) without drift: each delay is
+     * the rounded cumulative end time minus what was already emitted, so rounding remainders
+     * (and any time added by the minimum) carry over to the next frames and the total length
+     * stays exact whenever possible. Every delay is at least [GifEncoder.MIN_DELAY_CS] (2 cs);
+     * 0/1 cs is raised to 2 cs, never to the 10 cs browsers use for "too small" delays.
+     * With no dropped frames this keeps the source's own per-frame durations.
+     */
+    fun delaysCs(durationsMs: LongArray): IntArray {
+        val out = IntArray(durationsMs.size)
+        var endMs = 0L
+        var emittedCs = 0L
+        for (i in durationsMs.indices) {
+            endMs += durationsMs[i].coerceAtLeast(0)
+            val targetCs = (endMs / 10.0).roundToInt().toLong()
+            val cs = (targetCs - emittedCs).coerceAtLeast(GifEncoder.MIN_DELAY_CS.toLong())
+            out[i] = cs.coerceAtMost(65_535).toInt()
+            emittedCs += out[i]
+        }
+        return out
     }
 
     /** Output size for a canvas so the longest side is at most [maxSide] (never upscales). */
@@ -57,39 +97,10 @@ object GifPlanning {
     }
 
     /**
-     * Rough GIF size for a sticker: about 0.5 byte per output pixel per frame after LZW
-     * (measured on device: 20 frames at 240 px gave 481-574 KB), plus header and tables.
-     */
-    const val BYTES_PER_PIXEL_ESTIMATE = 0.5
-
-    fun estimateBytes(frames: Int, width: Int, height: Int): Long =
-        (frames.toLong() * width * height * BYTES_PER_PIXEL_ESTIMATE).toLong() + 1_024 + frames * 16L
-
-    /**
-     * Picks the first attempt whose estimated size fits [limit], so a typical sticker needs a
-     * single encode; if none fits, the last (smallest) attempt. The caller retries at most
-     * once, with the next attempt, if the real output is still too large.
-     */
-    fun chooseStep(
-        sourceWidth: Int,
-        sourceHeight: Int,
-        sourceFrames: Int,
-        limit: Int = TARGET_BYTES,
-        steps: List<GifStep> = STEPS,
-    ): Int {
-        for ((i, step) in steps.withIndex()) {
-            val (w, h) = scaledSize(sourceWidth, sourceHeight, step.maxSide)
-            val frames = minOf(sourceFrames, step.maxFrames)
-            if (estimateBytes(frames, w, h) <= limit) return i
-        }
-        return steps.lastIndex
-    }
-
-    /**
      * Size fallback: after attempt [stepIndex] of [steps] produced [bytes], returns the index
      * of the next attempt, or null to accept the current result (it fits, or no attempt is left).
      */
-    fun nextStepOrNull(stepIndex: Int, bytes: Int, limit: Int = TARGET_BYTES, steps: List<GifStep> = STEPS): Int? {
+    fun nextStepOrNull(stepIndex: Int, bytes: Int, limit: Int, steps: List<GifStep>): Int? {
         if (bytes <= limit) return null
         val next = stepIndex + 1
         return if (next < steps.size) next else null

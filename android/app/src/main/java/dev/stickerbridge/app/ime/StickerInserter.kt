@@ -11,6 +11,7 @@ import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
 import dev.stickerbridge.app.DebugLog
 import dev.stickerbridge.app.convert.AnimatedStickerConverter
+import dev.stickerbridge.app.convert.GifProfile
 import dev.stickerbridge.app.convert.WebpHeader
 import dev.stickerbridge.app.data.StickerGridItem
 import java.io.File
@@ -39,6 +40,9 @@ object StickerInserter {
     const val PNG_MIME = "image/png"
     private const val OUTGOING_DIR = "outgoing"
     private const val GIF_CACHE_DIR = "gifcache"
+    /** GIF cache format/limits version: v1 = old compact limits (320/240 px, <= 30 frames), v2 = profiles. */
+    const val CACHE_VERSION = "v2"
+
     /** Conversion cache limit (LRU). */
     const val MAX_GIF_CACHE_BYTES = 100L * 1024 * 1024
     private const val MAX_OUTGOING_AGE_MS = 24L * 60 * 60 * 1000
@@ -92,10 +96,10 @@ object StickerInserter {
      * in-memory WEBP bytes. Uses the private conversion cache (key: folder + documentId +
      * lastModified). No intermediate file is read.
      */
-    fun prepareGif(context: Context, item: StickerGridItem, webp: ByteArray): GifOutcome {
+    fun prepareGif(context: Context, item: StickerGridItem, webp: ByteArray, profile: GifProfile): GifOutcome {
         return try {
-            val fromCache = isGifCached(context, item)
-            val (cached, result) = ensureCachedGif(context, item, webp)
+            val fromCache = isGifCached(context, item, profile)
+            val (cached, result) = ensureCachedGif(context, item, webp, profile)
             if (cached == null) return GifOutcome(null, result, false, if (result == null) "not decodable" else "output not written")
             val out = uniqueOutgoing(context, item.id, "gif")
             cached.copyTo(out, overwrite = false)
@@ -109,31 +113,44 @@ object StickerInserter {
     }
 
     /** True if a converted GIF for this sticker version is in the conversion cache. */
-    fun isGifCached(context: Context, item: StickerGridItem): Boolean =
-        gifCacheFile(context, item).let { it.isFile && it.length() > 0 }
+    fun isGifCached(context: Context, item: StickerGridItem, profile: GifProfile): Boolean =
+        gifCacheFile(context, item, profile).let { it.isFile && it.length() > 0 }
 
     /**
      * Makes sure the conversion cache holds a GIF for this sticker version (background thread).
      * Returns the cached file (or null) and the conversion result (null when it was cached).
      * Also used by the background pre-converter.
      */
-    fun ensureCachedGif(context: Context, item: StickerGridItem, webp: ByteArray): Pair<File?, AnimatedStickerConverter.Result?> {
-        val cached = gifCacheFile(context, item)
+    fun ensureCachedGif(
+        context: Context,
+        item: StickerGridItem,
+        webp: ByteArray,
+        profile: GifProfile,
+    ): Pair<File?, AnimatedStickerConverter.Result?> {
+        val cached = gifCacheFile(context, item, profile)
         if (cached.isFile && cached.length() > 0) {
             cached.setLastModified(System.currentTimeMillis()) // LRU touch
             return cached to null
         }
-        val result = AnimatedStickerConverter.convert(webp, cached) ?: return null to null
+        val result = AnimatedStickerConverter.convert(webp, cached, profile) ?: return null to null
         trimToBytes(cached.parentFile!!, MAX_GIF_CACHE_BYTES, keep = cached)
         return (if (cached.isFile) cached else null) to result
     }
 
-    private fun gifCacheFile(context: Context, item: StickerGridItem): File =
-        File(File(context.cacheDir, GIF_CACHE_DIR).apply { mkdirs() }, cacheKey(item) + ".gif")
+    /**
+     * Cache file name: "<CACHE_VERSION>_<profile tag>_<sha1(folder|documentId|lastModified)>.gif".
+     * Bumping [CACHE_VERSION] (or a different profile) makes old GIFs miss; files from older
+     * versions are removed by [trimToBytes].
+     */
+    private fun gifCacheFile(context: Context, item: StickerGridItem, profile: GifProfile): File =
+        File(File(context.cacheDir, GIF_CACHE_DIR).apply { mkdirs() }, "${CACHE_VERSION}_${profile.cacheTag}_${cacheKey(item)}.gif")
 
     /** LRU by last use (file time): deletes oldest GIFs until the cache is at most [maxBytes]. */
     private fun trimToBytes(dir: File, maxBytes: Long, keep: File) {
-        val files = dir.listFiles()?.filter { it.isFile && it.name.endsWith(".gif") } ?: return
+        val all = dir.listFiles()?.filter { it.isFile } ?: return
+        // GIFs made with older limits (another cache version) are regenerated on demand: drop them.
+        all.filter { !it.name.startsWith(CACHE_VERSION + "_") }.forEach { it.delete() }
+        val files = all.filter { it.exists() && it.name.endsWith(".gif") }
         val entries = files.map { dev.stickerbridge.app.convert.LruPolicy.Entry(it.name, it.length(), it.lastModified()) }
         for (name in dev.stickerbridge.app.convert.LruPolicy.evict(entries, maxBytes, keep.name)) File(dir, name).delete()
     }
