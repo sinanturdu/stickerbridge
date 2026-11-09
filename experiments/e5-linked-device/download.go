@@ -3,17 +3,24 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/util/cbcutil"
+	"go.mau.fi/whatsmeow/util/hkdfutil"
 )
 
 var flagLimit = flag.Int("limit", 0, "with --download: download only the first N favorites (0 = all)")
@@ -61,8 +68,14 @@ func (p *probe) downloadAll() {
 			continue
 		}
 		kind, ext := detectKind(data, f)
-		sum := sha256.Sum256(data)
+		sum := sha256.Sum256(data) // our own plaintext hash, used as the file name
 		name := hex.EncodeToString(sum[:]) + ext
+		if i < 3 {
+			// Learn what the favorite index id is. Prints yes/no only, never values.
+			fmt.Printf("  [%d/%d] id=%s index==sha256(plaintext): %s, index==fileEncSHA256: %s\n",
+				i+1, len(favs), short(f.Index), yesNo(indexMatches(f.Index, sum[:])),
+				yesNo(indexMatches(f.Index, f.action.GetFileEncSHA256())))
+		}
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
 			failed++
 			items = append(items, item)
@@ -170,21 +183,159 @@ func writeGallery(path string, items []galleryItem, total int) error {
 	return err
 }
 
+// downloadOne downloads and decrypts one favorite sticker.
+//
+// Why not cli.DownloadMediaWithPath: StickerAction (waSyncAction) has URL, directPath,
+// mediaKey, fileEncSHA256, fileLength, mimetype, isLottie, imageHash - but NO plaintext
+// fileSHA256. whatsmeow's downloadAndDecrypt (download.go) always compares
+// sha256(plaintext) with fileSHA256 for encrypted media, even with allowNoHash=true
+// and a nil hash, so every favorite failed with "hash of media plaintext doesn't match".
+// The favorite's index id must not be used as that hash either (it is not known to be
+// the plaintext SHA-256; see the index check printed for the first items).
+//
+// What IS verified here:
+//  1. sha256(ciphertext || mac) == fileEncSHA256 - checked by whatsmeow's
+//     DownloadPossiblyEncryptedMediaWithRetries (downloadEncryptedMedia) while downloading.
+//  2. HMAC-SHA256(macKey, iv || ciphertext)[:10] == mac - checked below, as whatsmeow's
+//     validateMedia does. The keys come from HKDF(mediaKey, "WhatsApp Image Keys"), like
+//     whatsmeow's getMediaKeys for MediaImage (stickers use the image media type).
+//  3. AES-CBC decryption with PKCS#7 unpadding succeeds.
+//
+// What is NOT verified: the plaintext SHA-256 (no such field in StickerAction).
 func (p *probe) downloadOne(ctx context.Context, f *favorite) ([]byte, error) {
 	a := f.action
 	if a == nil {
 		return nil, fmt.Errorf("no sticker action")
 	}
-	if a.GetDirectPath() == "" {
-		return nil, fmt.Errorf("no direct path in favorite")
-	}
 	if len(a.GetMediaKey()) == 0 {
 		return nil, fmt.Errorf("no media key in favorite")
 	}
-	// StickerAction carries no plaintext fileSHA256, so the plaintext hash check is skipped
-	// (allowNoHash=true). The encrypted file hash and HMAC are still verified by whatsmeow.
-	return p.cli.DownloadMediaWithPath(ctx, a.GetDirectPath(), a.GetFileEncSHA256(), nil,
-		a.GetMediaKey(), whatsmeow.MediaImage, "", true)
+	encHash := a.GetFileEncSHA256()
+	if len(encHash) != 32 {
+		return nil, fmt.Errorf("no encrypted file hash in favorite")
+	}
+
+	directPath := a.GetDirectPath()
+	if directPath == "" {
+		directPath = directPathFromURL(a.GetURL())
+	}
+	if directPath == "" {
+		return nil, errNoMediaPath
+	}
+
+	ciphertext, mac, err := p.fetchEncrypted(ctx, directPath, encHash)
+	if err != nil && strings.HasPrefix(a.GetURL(), "https://") {
+		// Last resort: the full CDN URL as stored in the favorite (ciphertext hash still checked).
+		c2, m2, err2 := p.cli.DangerousInternals().DownloadPossiblyEncryptedMediaWithRetries(ctx, a.GetURL(), encHash)
+		if err2 == nil {
+			ciphertext, mac, err = c2, m2, nil
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return decryptMedia(a.GetMediaKey(), ciphertext, mac)
+}
+
+var errNoMediaPath = errors.New("no media path")
+
+// mediaHMACLength is the truncated HMAC appended to WhatsApp media (whatsmeow: mediaHMACLength).
+const mediaHMACLength = 10
+
+// directPathFromURL derives a direct path from a full media URL. whatsmeow itself
+// only downloads by directPath (host + directPath + "&hash=...&mms-type=..."); for
+// messages that carry both, the directPath is the URL's path and query without
+// scheme and host, so the same split is used here.
+func directPathFromURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Path == "" {
+		return ""
+	}
+	path := u.EscapedPath()
+	if u.RawQuery != "" {
+		path += "?" + u.RawQuery
+	}
+	return path
+}
+
+// fetchEncrypted downloads ciphertext+mac from the media hosts the same way whatsmeow's
+// DownloadMediaWithPath builds its URLs, with the ciphertext SHA-256 check enabled.
+func (p *probe) fetchEncrypted(ctx context.Context, directPath string, encHash []byte) (ciphertext, mac []byte, err error) {
+	if !strings.HasPrefix(directPath, "/") {
+		return nil, nil, fmt.Errorf("media path does not start with slash")
+	}
+	internals := p.cli.DangerousInternals()
+	conn, err := internals.RefreshMediaConn(ctx, false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to refresh media connections: %w", err)
+	}
+	if len(conn.Hosts) == 0 {
+		return nil, nil, fmt.Errorf("no media hosts")
+	}
+	for _, host := range conn.Hosts {
+		mediaURL := fmt.Sprintf("https://%s%s&hash=%s&mms-type=%s&__wa-mms=",
+			host.Hostname, directPath, base64.URLEncoding.EncodeToString(encHash), "image")
+		ciphertext, mac, err = internals.DownloadPossiblyEncryptedMediaWithRetries(ctx, mediaURL, encHash)
+		if err == nil ||
+			errors.Is(err, whatsmeow.ErrInvalidMediaEncSHA256) ||
+			errors.Is(err, whatsmeow.ErrMediaDownloadFailedWith403) ||
+			errors.Is(err, whatsmeow.ErrMediaDownloadFailedWith404) ||
+			errors.Is(err, whatsmeow.ErrMediaDownloadFailedWith410) ||
+			errors.Is(err, context.Canceled) {
+			return ciphertext, mac, err
+		}
+	}
+	return nil, nil, err
+}
+
+// decryptMedia checks the media MAC and decrypts, mirroring whatsmeow's
+// validateMedia + cbcutil.Decrypt, without the plaintext SHA-256 comparison.
+func decryptMedia(mediaKey, ciphertext, mac []byte) ([]byte, error) {
+	expanded := hkdfutil.SHA256(mediaKey, nil, []byte(whatsmeow.MediaImage), 112)
+	iv, cipherKey, macKey := expanded[:16], expanded[16:48], expanded[48:80]
+	if len(mac) != mediaHMACLength {
+		return nil, whatsmeow.ErrInvalidMediaHMAC
+	}
+	h := hmac.New(sha256.New, macKey)
+	h.Write(iv)
+	h.Write(ciphertext)
+	if !hmac.Equal(h.Sum(nil)[:mediaHMACLength], mac) {
+		return nil, whatsmeow.ErrInvalidMediaHMAC
+	}
+	data, err := cbcutil.Decrypt(cipherKey, iv, ciphertext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt file: %w", err)
+	}
+	return data, nil
+}
+
+// indexMatches reports whether a favorite index id encodes the given 32-byte hash
+// (hex, standard or URL-safe base64, with or without padding). Only yes/no is printed.
+func indexMatches(index string, hash []byte) bool {
+	if len(hash) == 0 {
+		return false
+	}
+	if strings.EqualFold(index, hex.EncodeToString(hash)) {
+		return true
+	}
+	for _, enc := range []*base64.Encoding{
+		base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding,
+	} {
+		if index == enc.EncodeToString(hash) {
+			return true
+		}
+	}
+	return false
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
 }
 
 // detectKind classifies decrypted sticker bytes.
