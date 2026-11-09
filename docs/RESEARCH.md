@@ -1,6 +1,6 @@
 # Research summary
 
-Research date: 2026-11-09. Only rows labelled ✅ prototype were tested on a device (E0 and E1: one Samsung device, 2026-11-09). Everything else is untested.
+Research date: 2026-11-09. Only rows labelled ✅ prototype were tested with a working prototype (E0 and E1: one Samsung device; E5: one account with a Go desktop probe; all 2026-11-09). Everything else is untested.
 
 Each finding carries one label:
 - ✅ official docs
@@ -21,7 +21,10 @@ Each finding carries one label:
 | The Android 11+ folder picker (SAF) blocks `Android/data` and `Android/obb`, but not `Android/media`. | ✅ [2] |
 | Favorites, their order and pack membership live in WhatsApp's private `sticker.db`. Other apps can't read it, and backups are encrypted. | ✅ [3][4] |
 | `MANAGE_EXTERNAL_STORAGE`, broad photo access and Accessibility-based screen reading are restricted by Google Play policy. | ✅ [5][6][7] |
-| Favorites sync to linked devices as encrypted app state (`favoriteSticker` in `regular_low`, with timestamp and `isFavorite` flag). | 🔎 [8] |
+| Favorites sync to linked devices as encrypted app state (`favoriteSticker` in `regular_low`). A full sync takes < 1 s; on the test account it returned 907 entries (906 `isFavorite=true`), every one with a timestamp, so the real favorites order is available. Gallery order matched the phone's favorites tab. | ✅ prototype → [E5](experiments/E5-linked-device.md) [8] |
+| Live favorite changes reach a linked device in ~1 s (add ~0.9 s, remove ~1.2 s). A remove is a REMOVE op plus SET `isFavorite=false`, and each change also rewrites an older favorite (REMOVE + SET with its old timestamp), so state must be derived idempotently. | ✅ prototype → [E5](experiments/E5-linked-device.md) |
+| Favorite stickers can be downloaded and decrypted (verified by `fileEncSHA256` + media MAC; the favorite index is not the plaintext SHA-256): 29/30 ok, static and animated WEBP. Lottie favorites (`application/was`) need a separate conversion path. | ✅ prototype → [E5](experiments/E5-linked-device.md) |
+| The initial history sync carried no `FavoriteStickers` / `RecentStickers` (only RECENT chunks): recent stickers are not available this way. | ✅ prototype → [E5](experiments/E5-linked-device.md) |
 | Linked-device libraries are unofficial. WhatsApp's Terms forbid automated access, so there is a risk of account ban. | ✅ [9] |
 | On iOS, no app can read WhatsApp's data. App groups are shared only between apps from the same developer. | ✅ [10] |
 | WhatsApp Business Platform receives only stickers sent *to* a business number. It cannot read a personal account's favorites. | ✅ [11] |
@@ -41,7 +44,7 @@ Each finding carries one label:
 
 ## Conclusion
 Not every requirement can be met through official means at the same time:
-- Favorites and their order are reachable only through the unofficial linked-device path.
+- Favorites and their order are reachable only through the unofficial linked-device path — which works (E5), but carries account-ban risk.
 - iOS has no automatic sync.
 - A "real sticker" look (transparent, animated as GIF) works in Stories via the keyboard; DMs show stickers on a white card (E1).
 
