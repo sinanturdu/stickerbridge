@@ -57,6 +57,35 @@ object GifPlanning {
     }
 
     /**
+     * Rough GIF size for a sticker: about 0.5 byte per output pixel per frame after LZW
+     * (measured on device: 20 frames at 240 px gave 481-574 KB), plus header and tables.
+     */
+    const val BYTES_PER_PIXEL_ESTIMATE = 0.5
+
+    fun estimateBytes(frames: Int, width: Int, height: Int): Long =
+        (frames.toLong() * width * height * BYTES_PER_PIXEL_ESTIMATE).toLong() + 1_024 + frames * 16L
+
+    /**
+     * Picks the first attempt whose estimated size fits [limit], so a typical sticker needs a
+     * single encode; if none fits, the last (smallest) attempt. The caller retries at most
+     * once, with the next attempt, if the real output is still too large.
+     */
+    fun chooseStep(
+        sourceWidth: Int,
+        sourceHeight: Int,
+        sourceFrames: Int,
+        limit: Int = TARGET_BYTES,
+        steps: List<GifStep> = STEPS,
+    ): Int {
+        for ((i, step) in steps.withIndex()) {
+            val (w, h) = scaledSize(sourceWidth, sourceHeight, step.maxSide)
+            val frames = minOf(sourceFrames, step.maxFrames)
+            if (estimateBytes(frames, w, h) <= limit) return i
+        }
+        return steps.lastIndex
+    }
+
+    /**
      * Size fallback: after attempt [stepIndex] of [steps] produced [bytes], returns the index
      * of the next attempt, or null to accept the current result (it fits, or no attempt is left).
      */

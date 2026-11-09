@@ -6,10 +6,13 @@ import java.io.File
 /**
  * Converts an animated WEBP sticker into a GIF that Instagram animates (E1).
  *
- * - Decodes with libwebp (one composited frame at a time).
- * - Attempts [GifPlanning.STEPS] in order (320 px / 30 frames, 240 px / 30 frames,
- *   240 px / 20 frames) until the GIF is <= [GifPlanning.TARGET_BYTES]; frames are
- *   dropped evenly with merged delays.
+ * Speed (target < 1.5 s for typical stickers):
+ * - Frames to keep are chosen first; decoding stays sequential (WEBP frames are composited),
+ *   but dropped frames are decoded natively without being copied or scaled ([WebpAnimDecoder.skip]).
+ * - Each kept frame is downscaled once; ONE global palette is built from all kept frames
+ *   (fast 5:5:5 median cut) and shared by every frame (one color table, smaller file).
+ * - The attempt (size/frames) is predicted from the source ([GifPlanning.chooseStep]);
+ *   at most one retry with the next smaller attempt.
  */
 object AnimatedStickerConverter {
 
@@ -21,30 +24,36 @@ object AnimatedStickerConverter {
         val sourceFrames: Int,
         val attempts: Int,
         val millis: Long,
+        val decodeMillis: Long,
+        val encodeMillis: Long,
     ) {
         val framesDropped: Int get() = sourceFrames - framesKept
     }
 
-    /** Returns null if the WEBP cannot be decoded (caller then sends the WEBP). */
-    fun convert(webp: ByteArray, out: File, steps: List<GifStep> = GifPlanning.STEPS, limit: Int = GifPlanning.TARGET_BYTES): Result? {
+    private class Encoded(val bytes: ByteArray, val side: Int, val frames: Int, val decodeMs: Long, val encodeMs: Long)
+
+    /** Returns null if the WEBP cannot be decoded (caller then sends a still image). */
+    fun convert(
+        webp: ByteArray,
+        out: File,
+        steps: List<GifStep> = GifPlanning.STEPS,
+        limit: Int = GifPlanning.TARGET_BYTES,
+    ): Result? {
         val started = System.nanoTime()
         WebpAnimDecoder.open(webp)?.use { dec ->
             if (dec.width <= 0 || dec.height <= 0 || dec.frameCount <= 0) return null
-            var index = 0
-            while (true) {
-                val step = steps[index]
-                val plan = GifPlanning.planFrames(dec.durationsMs, step.maxFrames)
-                val side = minOf(step.maxSide, maxOf(dec.width, dec.height))
-                val bytes = encode(dec, plan, side)
-                val next = GifPlanning.nextStepOrNull(index, bytes.size, limit, steps)
-                if (next == null) {
-                    writeAtomically(out, bytes)
-                    val ms = (System.nanoTime() - started) / 1_000_000
-                    return Result(bytes.size, side, plan.size, dec.frameCount, index + 1, ms)
-                }
-                index = next
+            val first = GifPlanning.chooseStep(dec.width, dec.height, dec.frameCount, limit, steps)
+            var encoded = encode(dec, steps[first])
+            var attempts = 1
+            val retry = GifPlanning.nextStepOrNull(first, encoded.bytes.size, limit, steps)
+            if (retry != null) { // at most one retry
                 dec.reset()
+                encoded = encode(dec, steps[retry])
+                attempts = 2
             }
+            writeAtomically(out, encoded.bytes)
+            val ms = (System.nanoTime() - started) / 1_000_000
+            return Result(encoded.bytes.size, encoded.side, encoded.frames, dec.frameCount, attempts, ms, encoded.decodeMs, encoded.encodeMs)
         }
         return null
     }
@@ -62,22 +71,44 @@ object AnimatedStickerConverter {
         }
     }
 
-    private fun encode(dec: WebpAnimDecoder, plan: List<PlannedFrame>, side: Int): ByteArray {
+    private fun encode(dec: WebpAnimDecoder, step: GifStep): Encoded {
+        val t0 = System.nanoTime()
+        val plan = GifPlanning.planFrames(dec.durationsMs, step.maxFrames)
+        val side = minOf(step.maxSide, maxOf(dec.width, dec.height))
         val (w, h) = GifPlanning.scaledSize(dec.width, dec.height, side)
-        val buffer = ByteArrayOutputStream(128 * 1024)
-        val gif = GifEncoder(buffer, w, h, loopCount = 0)
-        val frame = IntArray(dec.width * dec.height)
+        val pixels = w * h
+
+        // 1) Sequential decode; only kept frames are copied, scaled once and counted.
+        val canvas = IntArray(dec.width * dec.height)
+        val kept = ArrayList<IntArray>(plan.size)
+        val histogram = Histogram()
         var planIdx = 0
-        var srcIdx = 0
-        while (planIdx < plan.size && dec.next(frame)) {
-            if (plan[planIdx].sourceIndex == srcIdx) {
-                val scaled = ArgbScaler.scale(frame, dec.width, dec.height, w, h)
-                gif.addFrame(scaled, plan[planIdx].delayCs)
+        var src = 0
+        while (planIdx < plan.size) {
+            if (plan[planIdx].sourceIndex == src) {
+                if (!dec.next(canvas)) break
+                val scaled = ArgbScaler.scale(canvas, dec.width, dec.height, w, h)
+                histogram.add(scaled, pixels)
+                kept += scaled
                 planIdx++
+            } else if (!dec.skip()) {
+                break
             }
-            srcIdx++
+            src++
+        }
+        val t1 = System.nanoTime()
+
+        // 2) One global palette for all kept frames, then map + LZW per frame.
+        val palette = Palette.from(histogram)
+        val buffer = ByteArrayOutputStream(128 * 1024)
+        val gif = GifEncoder(buffer, w, h, loopCount = 0, globalPalette = palette.colors)
+        val indices = ByteArray(pixels)
+        for (i in kept.indices) {
+            palette.map(kept[i], pixels, indices)
+            gif.addIndexedFrame(indices, plan[i].delayCs)
         }
         gif.finish()
-        return buffer.toByteArray()
+        val t2 = System.nanoTime()
+        return Encoded(buffer.toByteArray(), side, kept.size, (t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000)
     }
 }

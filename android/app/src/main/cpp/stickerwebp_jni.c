@@ -100,6 +100,19 @@ Java_dev_stickerbridge_app_convert_WebpAnimDecoder_nativeNext(JNIEnv* env, jclas
     return (jint) timestamp;
 }
 
+// Decodes the next frame (needed for compositing) without copying it to Java.
+// Returns the frame's end timestamp in ms, or -1 when there are no more frames.
+JNIEXPORT jint JNICALL
+Java_dev_stickerbridge_app_convert_WebpAnimDecoder_nativeSkip(JNIEnv* env, jclass clazz, jlong ptr) {
+    (void) env; (void) clazz;
+    Handle* h = (Handle*) (intptr_t) ptr;
+    if (!WebPAnimDecoderHasMoreFrames(h->dec)) return -1;
+    uint8_t* buf = NULL;
+    int timestamp = 0;
+    if (!WebPAnimDecoderGetNext(h->dec, &buf, &timestamp)) return -1;
+    return (jint) timestamp;
+}
+
 JNIEXPORT void JNICALL
 Java_dev_stickerbridge_app_convert_WebpAnimDecoder_nativeReset(JNIEnv* env, jclass clazz, jlong ptr) {
     (void) env; (void) clazz;

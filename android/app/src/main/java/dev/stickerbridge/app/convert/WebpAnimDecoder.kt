@@ -34,6 +34,12 @@ class WebpAnimDecoder private constructor(private var handle: Long) : Closeable 
         return nativeNext(handle, out) >= 0
     }
 
+    /** Decodes the next frame for compositing but does not copy it to Java. False when done. */
+    fun skip(): Boolean {
+        check(handle != 0L) { "decoder closed" }
+        return nativeSkip(handle) >= 0
+    }
+
     /** Rewinds to the first frame. */
     fun reset() {
         check(handle != 0L) { "decoder closed" }
@@ -67,6 +73,7 @@ class WebpAnimDecoder private constructor(private var handle: Long) : Closeable 
         @JvmStatic private external fun nativeInfo(handle: Long): IntArray
         @JvmStatic private external fun nativeDurations(handle: Long): IntArray
         @JvmStatic private external fun nativeNext(handle: Long, argbOut: IntArray): Int
+        @JvmStatic private external fun nativeSkip(handle: Long): Int
         @JvmStatic private external fun nativeReset(handle: Long)
         @JvmStatic private external fun nativeClose(handle: Long)
     }

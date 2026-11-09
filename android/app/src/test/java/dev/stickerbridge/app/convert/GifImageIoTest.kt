@@ -140,6 +140,33 @@ class GifImageIoTest {
     }
 
     @Test
+    fun globalPaletteModeDecodesWithOneColorTable() {
+        val w = 120
+        val h = 90
+        val frames = animation(w, h, 5)
+        val histogram = Histogram()
+        frames.forEach { histogram.add(it, w * h) }
+        val palette = Palette.from(histogram)
+        val bos = ByteArrayOutputStream()
+        val enc = GifEncoder(bos, w, h, 0, palette.colors)
+        val idx = ByteArray(w * h)
+        frames.forEach { palette.map(it, w * h, idx); enc.addIndexedFrame(idx, 6) }
+        enc.finish()
+
+        val r = Io.reader(bos.toByteArray())
+        assertEquals(5, Io.numImages(r))
+        assertNotNull(child(Io.streamMeta(r), "GlobalColorTable"))
+        for (i in 0 until 5) {
+            val meta = Io.imageMeta(r, i)
+            assertEquals(null, child(meta, "LocalColorTable")) // shared table only
+            assertEquals("6", child(meta, "GraphicControlExtension")!!.getAttribute("delayTime"))
+            val img = Io.read(r, i)
+            assertEquals(0, Io.rgb(img, 0, 0) ushr 24)
+            assertEquals(0xFF, Io.rgb(img, w / 2 + i * 3 - 5, h / 2) ushr 24)
+        }
+    }
+
+    @Test
     fun loopsForeverViaNetscapeBlock() {
         val r = Io.reader(encode(8, 8, animation(8, 8, 2), listOf(10, 10)))
         Io.numImages(r)

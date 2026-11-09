@@ -70,6 +70,24 @@ class GifPlanningTest {
     }
 
     @Test
+    fun predictionPicksOneAttemptForTypicalStickers() {
+        // Device case: 512 px, 87 frames -> nothing is estimated to fit -> smallest attempt directly
+        // (before: 3 attempts).
+        assertEquals(2, GifPlanning.chooseStep(512, 512, 87))
+        // Short animation: 3 frames fit at 320 px.
+        assertEquals(0, GifPlanning.chooseStep(512, 512, 3))
+        // 10 frames: 320 px estimated too big, 240 px fits.
+        assertEquals(1, GifPlanning.chooseStep(512, 512, 10))
+    }
+
+    @Test
+    fun estimateMatchesDeviceMeasurement() {
+        // 20 frames at 240 px measured 481-574 KB on device.
+        val kb = GifPlanning.estimateBytes(20, 240, 240) / 1024
+        assertTrue("estimate $kb KB", kb in 480..600)
+    }
+
+    @Test
     fun defaultPlanKeepsAtMost30Frames() {
         val plan = GifPlanning.planFrames(IntArray(75) { 40 })
         assertEquals(30, plan.size)

@@ -374,7 +374,7 @@ class StickerKeyboardService : InputMethodService() {
                         gif == null -> null.also { failure = outcome.error ?: "unknown" }
                         r == null -> "gif from cache: source=${bytes.size / 1024} KB, output=${gif.length() / 1024} KB"
                         else -> "gif converted: source=${bytes.size / 1024} KB, frames kept=${r.framesKept}/${r.sourceFrames}, " +
-                            "${r.side}px, attempts=${r.attempts}, output=${r.bytes / 1024} KB, ${r.millis} ms"
+                            "${r.side}px, attempts=${r.attempts}, output=${r.bytes / 1024} KB, ${r.millis} ms (decode ${r.decodeMillis} ms, encode ${r.encodeMillis} ms)"
                     }
                 }
                 if (gif != null) {

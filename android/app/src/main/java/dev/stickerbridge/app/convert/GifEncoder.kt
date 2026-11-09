@@ -7,8 +7,10 @@ import java.io.OutputStream
  *
  * - Every frame is a full-canvas image with up to 255 colors from median-cut
  *   quantization + 1 transparent index (255); alpha < 50 % becomes transparent.
- * - The first frame's palette is written as the Global Color Table (like Pillow and
- *   gifsicle, for strict decoders); later frames carry a Local Color Table.
+ * - Per-frame mode ([addFrame]): the first frame's palette is the Global Color Table
+ *   (like Pillow and gifsicle); later frames carry a Local Color Table.
+ * - Global mode ([globalPalette] + [addIndexedFrame]): one shared Global Color Table and
+ *   no local tables (smaller files, used by the converter).
  * - One Graphic Control Extension per frame: disposal 2 (restore to background),
  *   transparency flag, delay with a 2 cs minimum.
  * - NETSCAPE2.0 loop block, LZW with min code size 8, trailer 0x3B.
@@ -21,6 +23,8 @@ class GifEncoder(
     private val height: Int,
     /** 0 = loop forever. */
     private val loopCount: Int = 0,
+    /** If set, every frame uses this Global Color Table (call [addIndexedFrame]). */
+    private val globalPalette: IntArray? = null,
 ) {
     private var started = false
     private var finished = false
@@ -28,12 +32,25 @@ class GifEncoder(
     /** Adds one frame of [argb] (width * height, non-premultiplied ARGB). [delayCs] in 1/100 s. */
     fun addFrame(argb: IntArray, delayCs: Int) {
         require(argb.size >= width * height) { "frame too small" }
+        require(globalPalette == null) { "use addIndexedFrame with a global palette" }
         check(!finished) { "already finished" }
 
         val quantized = ColorQuantizer.quantize(argb, width * height)
         val firstFrame = !started
         if (firstFrame) writeHeader(globalPalette = quantized.palette)
+        writeFrame(quantized.indices, delayCs, if (firstFrame) null else quantized.palette)
+    }
 
+    /** Global mode: adds a frame already mapped to [globalPalette] indices (255 = transparent). */
+    fun addIndexedFrame(indices: ByteArray, delayCs: Int) {
+        val palette = requireNotNull(globalPalette) { "no global palette" }
+        require(indices.size >= width * height) { "frame too small" }
+        check(!finished) { "already finished" }
+        if (!started) writeHeader(globalPalette = palette)
+        writeFrame(indices, delayCs, localPalette = null)
+    }
+
+    private fun writeFrame(indices: ByteArray, delayCs: Int, localPalette: IntArray?) {
         // Graphic Control Extension
         out.write(0x21); out.write(0xF9); out.write(4)
         // packed: reserved(3)=0, disposal(3)=2, user input(1)=0, transparency flag(1)=1
@@ -46,20 +63,20 @@ class GifEncoder(
         out.write(0x2C)
         writeShort(0); writeShort(0)
         writeShort(width); writeShort(height)
-        if (firstFrame) {
+        if (localPalette == null) {
             out.write(0x00) // uses the Global Color Table
         } else {
             out.write(0x80 or 7) // Local Color Table, 2^(7+1) = 256 entries
-            writeColorTable(quantized.palette)
+            writeColorTable(localPalette)
         }
 
-        Lzw.encode(quantized.indices, MIN_CODE_SIZE, out)
+        Lzw.encode(indices, MIN_CODE_SIZE, out)
     }
 
     /** Writes the trailer. */
     fun finish() {
         if (finished) return
-        if (!started) writeHeader(globalPalette = IntArray(0))
+        if (!started) writeHeader(globalPalette = globalPalette ?: IntArray(0))
         out.write(0x3B)
         out.flush()
         finished = true
@@ -109,131 +126,17 @@ class GifEncoder(
 class QuantizedFrame(val palette: IntArray, val indices: ByteArray)
 
 /**
- * Median-cut quantizer on a 15-bit (5:5:5) color histogram of opaque pixels.
- * Palette colors are the count-weighted means of each box in full 8-bit precision.
+ * Per-frame quantizer (median cut on a 5:5:5 histogram, see [Palette]).
+ * The converter uses one global [Palette] for all frames instead.
  */
 object ColorQuantizer {
-    private const val MAX_COLORS = 255
-
     fun quantize(argb: IntArray, pixelCount: Int): QuantizedFrame {
-        val counts = IntArray(32768)
-        val sumR = LongArray(32768)
-        val sumG = LongArray(32768)
-        val sumB = LongArray(32768)
-        for (i in 0 until pixelCount) {
-            val c = argb[i]
-            if ((c ushr 24) < GifEncoder.ALPHA_THRESHOLD) continue
-            val r = (c shr 16) and 0xFF
-            val g = (c shr 8) and 0xFF
-            val b = c and 0xFF
-            val key = key15(c)
-            counts[key]++
-            sumR[key] += r.toLong(); sumG[key] += g.toLong(); sumB[key] += b.toLong()
-        }
-        val keys = (0 until 32768).filter { counts[it] > 0 }.toIntArray()
-        val palette: IntArray
-        val keyToIndex = IntArray(32768) { -1 }
-
-        if (keys.size <= MAX_COLORS) {
-            palette = IntArray(keys.size) { i -> meanColor(intArrayOf(keys[i]), counts, sumR, sumG, sumB) }
-            keys.forEachIndexed { i, k -> keyToIndex[k] = i }
-        } else {
-            val boxes = medianCut(keys, counts)
-            palette = IntArray(boxes.size) { i -> meanColor(boxes[i], counts, sumR, sumG, sumB) }
-        }
-
+        val h = Histogram()
+        h.add(argb, pixelCount)
+        val palette = Palette.from(h)
         val indices = ByteArray(pixelCount)
-        for (i in 0 until pixelCount) {
-            val c = argb[i]
-            if ((c ushr 24) < GifEncoder.ALPHA_THRESHOLD) {
-                indices[i] = GifEncoder.TRANSPARENT_INDEX.toByte()
-                continue
-            }
-            val key = key15(c)
-            var idx = keyToIndex[key]
-            if (idx < 0) {
-                idx = nearest(palette, key)
-                keyToIndex[key] = idx
-            }
-            indices[i] = idx.toByte()
-        }
-        return QuantizedFrame(palette, indices)
-    }
-
-    /** 5:5:5 histogram key of an ARGB color. */
-    private fun key15(c: Int): Int {
-        val r = ((c shr 16) and 0xFF) shr 3
-        val g = ((c shr 8) and 0xFF) shr 3
-        val b = (c and 0xFF) shr 3
-        return (r shl 10) or (g shl 5) or b
-    }
-
-    private fun meanColor(keys: IntArray, counts: IntArray, sr: LongArray, sg: LongArray, sb: LongArray): Int {
-        var n = 0L; var r = 0L; var g = 0L; var b = 0L
-        for (k in keys) { n += counts[k]; r += sr[k]; g += sg[k]; b += sb[k] }
-        if (n == 0L) return 0
-        return (((r / n).toInt()) shl 16) or (((g / n).toInt()) shl 8) or (b / n).toInt()
-    }
-
-    private fun nearest(palette: IntArray, key: Int): Int {
-        val r = ((key shr 10) and 31) * 8 + 4
-        val g = ((key shr 5) and 31) * 8 + 4
-        val b = (key and 31) * 8 + 4
-        var best = 0
-        var bestD = Int.MAX_VALUE
-        for (i in palette.indices) {
-            val p = palette[i]
-            val dr = ((p shr 16) and 0xFF) - r
-            val dg = ((p shr 8) and 0xFF) - g
-            val db = (p and 0xFF) - b
-            val d = 2 * dr * dr + 4 * dg * dg + 3 * db * db
-            if (d < bestD) { bestD = d; best = i }
-        }
-        return best
-    }
-
-    private fun channel(key: Int, axis: Int) = when (axis) {
-        0 -> (key shr 10) and 31
-        1 -> (key shr 5) and 31
-        else -> key and 31
-    }
-
-    /** Splits the histogram keys into at most 255 boxes. */
-    private fun medianCut(keys: IntArray, counts: IntArray): List<IntArray> {
-        val boxes = ArrayList<IntArray>()
-        boxes += keys
-        while (boxes.size < MAX_COLORS) {
-            // Pick the splittable box with the largest (range * population).
-            var bestBox = -1
-            var bestScore = -1L
-            var bestAxis = 0
-            for ((bi, box) in boxes.withIndex()) {
-                if (box.size < 2) continue
-                var pop = 0L
-                for (k in box) pop += counts[k]
-                for (axis in 0..2) {
-                    var lo = 31; var hi = 0
-                    for (k in box) { val v = channel(k, axis); if (v < lo) lo = v; if (v > hi) hi = v }
-                    val score = (hi - lo).toLong() * pop
-                    if (hi > lo && score > bestScore) { bestScore = score; bestBox = bi; bestAxis = axis }
-                }
-            }
-            if (bestBox < 0) break
-            val box = boxes[bestBox]
-            val axis = bestAxis
-            val sorted = box.sortedBy { channel(it, axis) }.toIntArray()
-            var total = 0L
-            for (k in sorted) total += counts[k]
-            var acc = 0L
-            var cut = 1
-            for (i in sorted.indices) {
-                acc += counts[sorted[i]]
-                if (acc * 2 >= total) { cut = (i + 1).coerceIn(1, sorted.size - 1); break }
-            }
-            boxes[bestBox] = sorted.copyOfRange(0, cut)
-            boxes += sorted.copyOfRange(cut, sorted.size)
-        }
-        return boxes
+        palette.map(argb, pixelCount, indices)
+        return QuantizedFrame(palette.colors, indices)
     }
 }
 
