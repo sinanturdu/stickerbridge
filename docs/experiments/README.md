@@ -6,5 +6,5 @@ Results are written here as text tables — **no screenshots of real chats, no r
 | ID | Doc | Code |
 |---|---|---|
 | E0 | [E0-whatsapp-folder.md](E0-whatsapp-folder.md) | adb commands only |
-| E1 | [E1-ime-probe.md](E1-ime-probe.md) | `experiments/e1-ime-probe/` (to be created) |
+| E1 | [E1-ime-probe.md](E1-ime-probe.md) | [`experiments/e1-ime-probe/`](../../experiments/e1-ime-probe/) |
 | E2–E6 | planned | – |
