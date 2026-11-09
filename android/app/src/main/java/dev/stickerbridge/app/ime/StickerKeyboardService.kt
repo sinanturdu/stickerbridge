@@ -14,6 +14,7 @@ import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.GridLayoutManager
@@ -56,6 +57,12 @@ class StickerKeyboardService : InputMethodService() {
     private lateinit var adapter: StickerAdapter
     private lateinit var thumbnails: ThumbnailLoader
 
+    private lateinit var title: TextView
+    private lateinit var tabViews: Map<Tab, TextView>
+    private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+    /** Tab shown now; null until the first load decides the default. */
+    private var currentTab: Tab? = null
+
     private var fieldAccepts = false
     private var lastGeneration = -1
     private var loadJob: Job? = null
@@ -74,10 +81,18 @@ class StickerKeyboardService : InputMethodService() {
         syncText = view.findViewById(R.id.kbSyncText)
         refresh = view.findViewById(R.id.kbRefresh)
         spinner = view.findViewById(R.id.kbSpinner)
+        title = view.findViewById(R.id.kbTitle)
+        tabViews = mapOf(
+            Tab.RECENT to view.findViewById(R.id.kbTabRecent),
+            Tab.FAVORITES to view.findViewById(R.id.kbTabFavorites),
+            Tab.ALL to view.findViewById(R.id.kbTabAll),
+        )
+        tabViews.forEach { (tab, tv) -> tv.setOnClickListener { selectTab(tab, remember = true) } }
+        currentTab = savedTab()
 
         val cellPx = resources.displayMetrics.widthPixels / COLUMNS
         thumbnails = ThumbnailLoader(contentResolver, scope, cellPx)
-        adapter = StickerAdapter(thumbnails) { insert(it) }
+        adapter = StickerAdapter(thumbnails, onClick = { insert(it) }, onLongClick = { item, anchor -> showMenu(item, anchor) })
         grid.layoutManager = GridLayoutManager(themed, COLUMNS)
         grid.adapter = adapter
         grid.setHasFixedSize(true)
@@ -144,18 +159,85 @@ class StickerKeyboardService : InputMethodService() {
         }
     }
 
+    private fun selectTab(tab: Tab, remember: Boolean) {
+        if (remember) prefs.edit().putString(KEY_TAB, tab.name).apply()
+        if (currentTab != tab) {
+            currentTab = tab
+            grid.scrollToPosition(0)
+        }
+        if (fieldAccepts && StickerFolders.connected(this).isNotEmpty()) reloadGrid()
+    }
+
+    private fun savedTab(): Tab? = prefs.getString(KEY_TAB, null)?.let { runCatching { Tab.valueOf(it) }.getOrNull() }
+
+    private fun renderTabs(tab: Tab) {
+        tabViews.forEach { (t, tv) -> tv.isSelected = t == tab }
+        title.setText(
+            when (tab) {
+                Tab.RECENT -> R.string.kb_title_recent
+                Tab.FAVORITES -> R.string.kb_title_favorites
+                Tab.ALL -> R.string.kb_title
+            }
+        )
+    }
+
     private fun reloadGrid() {
         loadJob?.cancel()
         loadJob = scope.launch {
-            val items = withContext(Dispatchers.IO) { app.database.stickerDao().gridItems() }
-            adapter.submit(items)
+            val library = app.library
+            val (tab, items, favorites) = withContext(Dispatchers.IO) {
+                // First run: All. Afterwards (no tab remembered): Recent if it is not empty.
+                var tab = currentTab
+                var recent: List<StickerGridItem>? = null
+                if (tab == null) {
+                    recent = library.recent()
+                    tab = if (recent.isNotEmpty()) Tab.RECENT else Tab.ALL
+                }
+                val items = when (tab) {
+                    Tab.RECENT -> recent ?: library.recent()
+                    Tab.FAVORITES -> library.favorites()
+                    Tab.ALL -> library.all()
+                }
+                Triple(tab, items, library.favoriteIds())
+            }
+            currentTab = tab
+            renderTabs(tab)
+            adapter.submit(items, favorites, showStars = tab != Tab.FAVORITES)
             if (!fieldAccepts) return@launch
             if (items.isEmpty()) {
-                if (!app.scans.state.value.running) showMessage(getString(R.string.kb_empty), withButton = false)
+                when (tab) {
+                    Tab.RECENT -> showMessage(getString(R.string.kb_empty_recent), withButton = false)
+                    Tab.FAVORITES -> showMessage(getString(R.string.kb_empty_favorites), withButton = false)
+                    Tab.ALL -> if (!app.scans.state.value.running) showMessage(getString(R.string.kb_empty), withButton = false)
+                }
             } else {
                 message.visibility = View.GONE
                 grid.visibility = View.VISIBLE
             }
+        }
+    }
+
+    /** Long-press menu: add/remove favorite, and "Remove from recent" in the Recent tab. */
+    private fun showMenu(item: StickerGridItem, anchor: View) {
+        val tab = currentTab ?: return
+        scope.launch {
+            val isFavorite = withContext(Dispatchers.IO) { item.id in app.library.favoriteIds() }
+            val popup = PopupMenu(anchor.context, anchor)
+            popup.menu.add(0, MENU_FAVORITE, 0, if (isFavorite) R.string.kb_menu_remove_favorite else R.string.kb_menu_add_favorite)
+            if (tab == Tab.RECENT) popup.menu.add(0, MENU_REMOVE_RECENT, 1, R.string.kb_menu_remove_recent)
+            popup.setOnMenuItemClickListener { menuItem ->
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        when (menuItem.itemId) {
+                            MENU_FAVORITE -> app.library.setFavorite(item.id, !isFavorite)
+                            MENU_REMOVE_RECENT -> app.library.removeFromRecent(item.id)
+                        }
+                    }
+                    reloadGrid()
+                }
+                true
+            }
+            popup.show()
         }
     }
 
@@ -204,7 +286,12 @@ class StickerKeyboardService : InputMethodService() {
             val info = currentInputEditorInfo
             val ok = ic != null && info != null &&
                 runCatching { StickerInserter.commit(this@StickerKeyboardService, ic, info, sendFile, mime) }.getOrDefault(false)
-            if (!ok) toast(R.string.kb_insert_failed)
+            if (!ok) {
+                toast(R.string.kb_insert_failed)
+            } else {
+                // Recent: only successful inserts count.
+                app.appScope.launch(Dispatchers.IO) { app.library.recordUse(item.id) }
+            }
         }
     }
 
@@ -230,7 +317,13 @@ class StickerKeyboardService : InputMethodService() {
 
     private fun toast(res: Int) = Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
 
+    private enum class Tab { RECENT, FAVORITES, ALL }
+
     companion object {
         private const val COLUMNS = 4
+        private const val PREFS = "keyboard"
+        private const val KEY_TAB = "last_tab"
+        private const val MENU_FAVORITE = 1
+        private const val MENU_REMOVE_RECENT = 2
     }
 }

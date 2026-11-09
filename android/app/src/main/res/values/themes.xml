@@ -16,6 +16,20 @@
         <item name="colorAccent">@color/sb_accent</item>
     </style>
 
+    <style name="SbKeyboardTab">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/tab_background</item>
+        <item name="android:drawablePadding">6dp</item>
+        <item name="android:drawableTint">@color/tab_content</item>
+        <item name="android:textColor">@color/tab_content</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+    </style>
+
     <style name="SbCard">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>

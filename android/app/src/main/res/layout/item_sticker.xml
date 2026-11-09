@@ -14,6 +14,16 @@
         android:padding="4dp"
         android:scaleType="fitCenter" />
 
+    <ImageView
+        android:id="@+id/stickerStar"
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp"
+        android:contentDescription="@string/kb_tab_favorites"
+        android:src="@drawable/ic_star_badge"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/stickerBadge"
         android:layout_width="wrap_content"

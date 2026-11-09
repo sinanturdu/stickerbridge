@@ -44,6 +44,18 @@
     <string name="kb_insert_error">Couldn\'t read this sticker</string>
     <string name="kb_gif_badge">GIF</string>
 
+    <!-- Keyboard tabs -->
+    <string name="kb_tab_recent">Recent</string>
+    <string name="kb_tab_favorites">Favorites</string>
+    <string name="kb_tab_all">All</string>
+    <string name="kb_title_recent">Recently sent</string>
+    <string name="kb_title_favorites">Favorites</string>
+    <string name="kb_empty_recent">Stickers you send will appear here</string>
+    <string name="kb_empty_favorites">Long-press a sticker to add it to favorites</string>
+    <string name="kb_menu_add_favorite">Add to favorites</string>
+    <string name="kb_menu_remove_favorite">Remove from favorites</string>
+    <string name="kb_menu_remove_recent">Remove from recent</string>
+
     <!-- Switching keyboards -->
     <string name="tile_label">StickerBridge</string>
     <string name="shortcut_switch_short">Sticker keyboard</string>
