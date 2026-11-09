@@ -28,13 +28,18 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
-        <!-- Invisible: opens the system keyboard picker, then finishes. -->
+        <!--
+          Invisible: opens the system keyboard picker, then finishes.
+          Started by the Quick Settings tile (PendingIntent on Android 14+) and by the
+          launcher shortcut. Own task (empty affinity, singleInstance) so it never brings
+          the onboarding screen to the front.
+        -->
         <activity
             android:name=".switcher.KeyboardPickerActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:label="@string/shortcut_switch_short"
-            android:launchMode="singleTask"
+            android:launchMode="singleInstance"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />

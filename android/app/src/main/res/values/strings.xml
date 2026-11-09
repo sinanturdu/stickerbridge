@@ -58,6 +58,7 @@
 
     <!-- Switching keyboards -->
     <string name="tile_label">StickerBridge</string>
+    <string name="tile_subtitle">Switch keyboard</string>
     <string name="shortcut_switch_short">Sticker keyboard</string>
     <string name="shortcut_switch_long">Switch to sticker keyboard</string>
     <string name="switch_title">How to switch keyboards</string>
