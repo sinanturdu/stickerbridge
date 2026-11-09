@@ -21,11 +21,24 @@ class ScanDiffTest {
     }
 
     @Test
-    fun unchangedDocumentIsSeen() {
+    fun unchangedHealthyDocumentWritesNothing() {
         val result = ScanDiff.diff(listOf(rec(1, "a")), listOf(doc("a")), complete = true)
+        assertTrue(result.isEmpty)
+        assertEquals(0, result.rowsWritten)
+    }
+
+    @Test
+    fun typicalRescanOfManyUnchangedFilesWritesZeroRows() {
+        val existing = (1L..12_000L).map { rec(it, "d$it") }
+        val scanned = (1L..12_000L).map { doc("d$it") }
+        assertEquals(0, ScanDiff.diff(existing, scanned, complete = true).rowsWritten)
+    }
+
+    @Test
+    fun previouslyMissingDocumentSeenAgainIsReset() {
+        val result = ScanDiff.diff(listOf(rec(1, "a", missing = 1)), listOf(doc("a")), complete = true)
         assertEquals(listOf(1L), result.seen)
-        assertTrue(result.inserts.isEmpty())
-        assertTrue(result.changed.isEmpty())
+        assertEquals(1, result.rowsWritten)
     }
 
     @Test
@@ -63,7 +76,7 @@ class ScanDiffTest {
         )
         assertTrue(result.missing.isEmpty())
         assertTrue(result.toArchive.isEmpty())
-        assertEquals(listOf(1L), result.seen)
+        assertTrue(result.seen.isEmpty()) // "a" is unchanged and healthy: no write
         assertEquals(listOf("c"), result.inserts.map { it.documentId })
     }
 

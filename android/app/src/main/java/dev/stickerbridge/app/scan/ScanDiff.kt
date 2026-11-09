@@ -26,7 +26,11 @@ data class DiffResult(
     val inserts: List<ScannedDoc>,
     /** Known documents whose size or lastModified changed (id to new values). */
     val changed: List<Pair<Long, ScannedDoc>>,
-    /** Known documents seen unchanged: update lastSeenAt, reset missing count, un-archive. */
+    /**
+     * Known documents seen unchanged that need a write: they were missing in an earlier scan
+     * or archived (reappearing). Reset missing count, un-archive, update lastSeenAt.
+     * Healthy unchanged documents are NOT listed, so a typical rescan writes nothing.
+     */
     val seen: List<Long>,
     /** Known documents not seen in a COMPLETE scan: missingScanCount + 1. */
     val missing: List<Long>,
@@ -35,6 +39,10 @@ data class DiffResult(
 ) {
     val isEmpty: Boolean
         get() = inserts.isEmpty() && changed.isEmpty() && seen.isEmpty() && missing.isEmpty()
+
+    /** Rows the database update will touch (archived rows are also in [missing]). */
+    val rowsWritten: Int
+        get() = inserts.size + changed.size + seen.size + missing.size
 }
 
 /**
@@ -42,7 +50,8 @@ data class DiffResult(
  *
  * Rules:
  * - New documents are inserted; changed ones (size or lastModified) are updated.
- * - Any document seen again gets its missing count reset and is un-archived.
+ * - A document seen again after being missing or archived gets its missing count reset
+ *   and is un-archived. Unchanged healthy documents produce no write at all.
  * - Documents not seen are counted as missing ONLY if the scan was complete.
  *   A failed or partial scan never increments missing counts.
  * - A document is archived after [archiveAfter] consecutive complete scans without it.
@@ -69,7 +78,8 @@ object ScanDiff {
             when {
                 old == null -> inserts += doc
                 old.lastModified != doc.lastModified || old.sizeBytes != doc.sizeBytes -> changed += old.id to doc
-                else -> seen += old.id
+                old.missingScanCount > 0 || old.archived -> seen += old.id
+                else -> Unit // unchanged and healthy: no write
             }
         }
 
