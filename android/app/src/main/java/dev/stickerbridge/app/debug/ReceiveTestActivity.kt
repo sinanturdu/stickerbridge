@@ -60,6 +60,19 @@ class ReceiveTestActivity : Activity() {
             textSize = 15f
         })
 
+        // Advertising mode: Instagram DM composer (exact values seen on device) or wildcards.
+        val modes = android.widget.RadioGroup(this).apply { orientation = android.widget.RadioGroup.HORIZONTAL }
+        val instagramButton = android.widget.RadioButton(this).apply { id = View.generateViewId(); text = "Instagram-like" }
+        val wildcardButton = android.widget.RadioButton(this).apply { id = View.generateViewId(); text = "Wildcard" }
+        modes.addView(instagramButton)
+        modes.addView(wildcardButton)
+        modes.check(instagramButton.id)
+        modes.setOnCheckedChangeListener { _, checkedId ->
+            instagramLike = checkedId == instagramButton.id
+            rebuildField(root)
+        }
+        root.addView(modes)
+
         useReceiveListener = CheckBox(this).apply {
             text = "Deliver keyboard content via OnReceiveContentListener (Android 12+) instead of the commitContent wrapper"
             isEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -96,13 +109,24 @@ class ReceiveTestActivity : Activity() {
 
     private var field: EditText? = null
 
+    /** true: mimic Instagram's DM composer exactly; false: the image and video wildcard types. */
+    private var instagramLike = true
+
+    private fun mimes(): Array<String> = if (instagramLike) INSTAGRAM_MIMES else WILDCARD_MIMES
+
+    private fun modeName(): String {
+        val adv = if (instagramLike) "Instagram-like [${INSTAGRAM_MIMES.joinToString()}]" else "wildcard [${WILDCARD_MIMES.joinToString()}]"
+        val path = if (::useReceiveListener.isInitialized && useReceiveListener.isChecked) "OnReceiveContentListener" else "commitContent wrapper"
+        return "advertising=$adv, path=$path"
+    }
+
     private fun fieldParams() = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
 
     private fun rebuildField(root: LinearLayout) {
         val index = root.indexOfChild(field)
         root.removeView(field)
         root.addView(RichEditText(this).also { field = it }, index, fieldParams())
-        line("field rebuilt; path=${if (useReceiveListener.isChecked) "OnReceiveContentListener" else "commitContent wrapper"}")
+        line("field rebuilt; ${modeName()}")
     }
 
     // ---------------------------------------------------------------------------------------
@@ -112,16 +136,29 @@ class ReceiveTestActivity : Activity() {
         init {
             hint = "Insert rich content here"
             minLines = 3
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            if (instagramLike) {
+                setRawInputType(INSTAGRAM_INPUT_TYPE)
+                imeOptions = INSTAGRAM_IME_OPTIONS
+            } else {
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                setOnReceiveContentListener(MIMES) { _, payload -> onReceive(payload) }
+                setOnReceiveContentListener(mimes()) { _, payload -> onReceive(payload) }
             }
         }
 
         override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
             val ic = super.onCreateInputConnection(outAttrs) ?: return null
-            EditorInfoCompat.setContentMimeTypes(outAttrs, MIMES)
-            line("onCreateInputConnection: advertised=${MIMES.joinToString()} keyboard=${currentKeyboard()}")
+            if (instagramLike) {
+                // Exactly what Instagram's DM composer reported on device.
+                outAttrs.inputType = INSTAGRAM_INPUT_TYPE
+                outAttrs.imeOptions = INSTAGRAM_IME_OPTIONS
+            }
+            EditorInfoCompat.setContentMimeTypes(outAttrs, mimes())
+            line(
+                "onCreateInputConnection: ${modeName()} inputType=0x%08x imeOptions=0x%08x keyboard=%s"
+                    .format(outAttrs.inputType, outAttrs.imeOptions, currentKeyboard())
+            )
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && useReceiveListener.isChecked) {
                 // Platform path: TextView turns commitContent into performReceiveContent.
                 return ic
@@ -134,7 +171,7 @@ class ReceiveTestActivity : Activity() {
 
     private fun onCommit(info: InputContentInfoCompat, flags: Int, opts: Bundle?): Boolean {
         val start = SystemClock.elapsedRealtime()
-        line("=== commitContent received (path: InputConnectionCompat wrapper) ===")
+        line("=== commitContent received; ${modeName()} ===")
         line("source keyboard=${currentKeyboard()}")
         line("flags=0x${Integer.toHexString(flags)} grantRead=${flags and InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION != 0}")
         line("opts keys=${opts?.keySet()?.joinToString() ?: "none"}")
@@ -159,7 +196,7 @@ class ReceiveTestActivity : Activity() {
     @RequiresApi(Build.VERSION_CODES.S)
     private fun onReceive(payload: ContentInfo): ContentInfo? {
         val start = SystemClock.elapsedRealtime()
-        line("=== onReceiveContent (path: OnReceiveContentListener) ===")
+        line("=== onReceiveContent; ${modeName()} ===")
         line("source keyboard=${currentKeyboard()}")
         line("source=${sourceName(payload.source)} flags=0x${Integer.toHexString(payload.flags)}")
         line("linkUri (full): ${payload.linkUri}")
@@ -252,6 +289,12 @@ class ReceiveTestActivity : Activity() {
 
     companion object {
         const val TAG = "SB-Recv"
-        private val MIMES = arrayOf("image/*", "video/*")
+        private val WILDCARD_MIMES = arrayOf("image/*", "video/*")
+        /** Instagram DM composer on device: contentMimeTypes, inputType 0x000ac001, imeOptions 0x02000001. */
+        private val INSTAGRAM_MIMES = arrayOf("image/png", "image/jpeg", "image/gif")
+        // TEXT | CAP_SENTENCES | AUTO_CORRECT | MULTI_LINE | NO_SUGGESTIONS
+        private const val INSTAGRAM_INPUT_TYPE = 0x000ac001
+        // IME_FLAG_NO_FULLSCREEN | IME_ACTION_NONE
+        private const val INSTAGRAM_IME_OPTIONS = 0x02000001
     }
 }
