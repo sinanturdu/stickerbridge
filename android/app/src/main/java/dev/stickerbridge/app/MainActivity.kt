@@ -83,6 +83,11 @@ class MainActivity : AppCompatActivity() {
         }
         btnScanNow.setOnClickListener { app.scans.request(ScanTrigger.REFRESH_BUTTON) }
 
+        findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.switchAnimatePreviews).apply {
+            isChecked = AppSettings.animatePreviews(this@MainActivity)
+            setOnCheckedChangeListener { _, on -> AppSettings.setAnimatePreviews(this@MainActivity, on) }
+        }
+
         uiScope.launch { app.scans.state.collect { renderStatus(it) } }
     }
 

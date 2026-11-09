@@ -1,6 +1,9 @@
 package dev.stickerbridge.app.ime
 
+import android.graphics.drawable.Animatable
+import android.graphics.drawable.Drawable
 import android.net.Uri
+import android.os.Build
 import android.provider.DocumentsContract
 import android.view.LayoutInflater
 import android.view.View
@@ -12,12 +15,18 @@ import androidx.recyclerview.widget.RecyclerView
 import dev.stickerbridge.app.R
 import dev.stickerbridge.app.data.StickerGridItem
 import kotlinx.coroutines.Job
+import java.io.File
 
 /**
  * Grid of stickers. The full list holds only light rows (ids and URIs); thumbnails
  * are decoded lazily per visible cell, so ~12,000 items stay smooth.
  * Animated stickers get a "GIF" badge once known; a tile being converted shows a spinner;
  * favorites get a star (except in the Favorites tab itself).
+ *
+ * Animated previews (API 28+, setting "Animate previews"): visible animated tiles play an
+ * AnimatedImageDrawable decoded at tile size, at most [MAX_PLAYING] at once; a tile stops
+ * when it is scrolled off (detached/recycled) or when the keyboard is hidden ([stopAll]).
+ * Tiles over the limit keep their static first-frame thumbnail.
  */
 class StickerAdapter(
     private val thumbnails: ThumbnailLoader,
@@ -31,6 +40,14 @@ class StickerAdapter(
     private val busyIds = HashSet<Long>()
     /** Animation flags learned after the list was loaded (e.g. on tap). */
     private val learnedAnimated = HashMap<Long, Boolean>()
+    private val playing = LinkedHashSet<Holder>()
+
+    /** Set from the "Animate previews" setting. */
+    var animatePreviews: Boolean = true
+        set(value) {
+            field = value
+            if (!value) stopAll()
+        }
 
     init {
         setHasStableIds(true)
@@ -81,15 +98,71 @@ class StickerAdapter(
         holder.itemView.setOnClickListener { onClick(item) }
         holder.itemView.setOnLongClickListener { onLongClick(item, it); true }
         bindState(holder, item)
+        stopAnimation(holder)
+        holder.animJob?.cancel()
         val cached = thumbnails.cached(item.id)
         if (cached != null) {
             holder.image.setImageBitmap(cached)
-            return
+        } else {
+            holder.image.setImageDrawable(null)
+            holder.job = thumbnails.load(item.id, documentUri(item)) { bitmap ->
+                if (holder.boundId == item.id && holder.animated == null) holder.image.setImageBitmap(bitmap)
+            }
         }
-        holder.image.setImageDrawable(null)
-        holder.job = thumbnails.load(item.id, documentUri(item)) { bitmap ->
-            if (holder.boundId == item.id) holder.image.setImageBitmap(bitmap)
+        maybeAnimate(holder, item)
+    }
+
+    private fun isAnimated(item: StickerGridItem) = (learnedAnimated[item.id] ?: item.isAnimated) == true
+
+    private fun maybeAnimate(holder: Holder, item: StickerGridItem) {
+        if (!animatePreviews || Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !isAnimated(item)) return
+        if (playing.size >= MAX_PLAYING) return
+        holder.animJob = thumbnails.loadAnimated(documentUri(item)) { drawable ->
+            if (drawable == null || holder.boundId != item.id || !animatePreviews) return@loadAnimated
+            if (playing.size >= MAX_PLAYING) return@loadAnimated
+            holder.animated = drawable
+            holder.image.setImageDrawable(drawable)
+            (drawable as? Animatable)?.start()
+            playing += holder
         }
+    }
+
+    private fun stopAnimation(holder: Holder) {
+        (holder.animated as? Animatable)?.stop()
+        holder.animated = null
+        playing -= holder
+    }
+
+    /** Stops every playing tile (keyboard hidden, setting off). Static thumbnails stay. */
+    fun stopAll() {
+        for (h in playing.toList()) {
+            h.animJob?.cancel()
+            stopAnimation(h)
+            val id = h.boundId
+            thumbnails.cached(id)?.let { h.image.setImageBitmap(it) }
+        }
+        playing.clear()
+    }
+
+    /** Restarts animations for tiles that are on screen again (keyboard shown). */
+    fun resumeVisible(recycler: RecyclerView) {
+        if (!animatePreviews) return
+        for (i in 0 until recycler.childCount) {
+            val holder = recycler.getChildViewHolder(recycler.getChildAt(i)) as? Holder ?: continue
+            val pos = holder.bindingAdapterPosition
+            if (pos == RecyclerView.NO_POSITION || pos >= items.size) continue
+            if (holder.animated == null) maybeAnimate(holder, items[pos])
+        }
+    }
+
+    override fun onViewAttachedToWindow(holder: Holder) {
+        val pos = holder.bindingAdapterPosition
+        if (pos != RecyclerView.NO_POSITION && pos < items.size && holder.animated == null) maybeAnimate(holder, items[pos])
+    }
+
+    override fun onViewDetachedFromWindow(holder: Holder) {
+        holder.animJob?.cancel()
+        stopAnimation(holder)
     }
 
     private fun bindState(holder: Holder, item: StickerGridItem) {
@@ -102,6 +175,8 @@ class StickerAdapter(
     override fun onViewRecycled(holder: Holder) {
         holder.job?.cancel()
         holder.job = null
+        holder.animJob?.cancel()
+        stopAnimation(holder)
         holder.boundId = -1
         holder.image.setImageDrawable(null)
     }
@@ -112,13 +187,20 @@ class StickerAdapter(
         val busy: ProgressBar = view.findViewById(R.id.stickerBusy)
         val star: ImageView = view.findViewById(R.id.stickerStar)
         var job: Job? = null
+        var animJob: Job? = null
+        var animated: Drawable? = null
         var boundId: Long = -1
     }
 
     companion object {
         private const val PAYLOAD_STATE = "state"
+        const val MAX_PLAYING = 12
+
+        /** sourceUri marker for debug "GIF size test" tiles; documentId is then a local file path. */
+        const val DEBUG_SOURCE = "debug-file"
 
         fun documentUri(item: StickerGridItem): Uri =
-            DocumentsContract.buildDocumentUriUsingTree(Uri.parse(item.sourceUri), item.documentId)
+            if (item.sourceUri == DEBUG_SOURCE) Uri.fromFile(File(item.documentId))
+            else DocumentsContract.buildDocumentUriUsingTree(Uri.parse(item.sourceUri), item.documentId)
     }
 }

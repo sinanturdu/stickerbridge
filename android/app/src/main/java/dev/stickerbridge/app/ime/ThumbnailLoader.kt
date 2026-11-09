@@ -4,6 +4,8 @@ import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
+import android.graphics.drawable.Animatable
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.util.LruCache
@@ -42,6 +44,36 @@ class ThumbnailLoader(
             cache.get(id) ?: decode(uri)?.also { cache.put(id, it) }
         }
         onLoaded(bitmap)
+    }
+
+    /**
+     * API 28+: decodes an animated drawable (AnimatedImageDrawable) downsampled to the tile
+     * size. [onLoaded] gets null if the file is not animated or can't be decoded. The
+     * drawable is not cached: each tile owns its own instance while it is on screen.
+     */
+    fun loadAnimated(uri: Uri, onLoaded: (Drawable?) -> Unit): Job = scope.launch(Dispatchers.Main) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            onLoaded(null)
+            return@launch
+        }
+        val drawable = withContext(decodeDispatcher) {
+            coroutineContext.ensureActive()
+            try {
+                val source = ImageDecoder.createSource(resolver, uri)
+                val d = ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
+                    val w = info.size.width
+                    val h = info.size.height
+                    val scale = targetPx.toFloat() / maxOf(w, h, 1)
+                    if (scale < 1f) decoder.setTargetSize(maxOf(1, (w * scale).toInt()), maxOf(1, (h * scale).toInt()))
+                }
+                if (d is Animatable) d else null
+            } catch (e: Exception) {
+                null
+            } catch (e: OutOfMemoryError) {
+                null
+            }
+        }
+        onLoaded(drawable)
     }
 
     fun clear() = cache.evictAll()

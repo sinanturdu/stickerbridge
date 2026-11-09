@@ -19,6 +19,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import dev.stickerbridge.app.AppSettings
 import dev.stickerbridge.app.DebugLog
 import dev.stickerbridge.app.MainActivity
 import dev.stickerbridge.app.R
@@ -128,6 +129,7 @@ class StickerKeyboardService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         if (root == null) return
+        adapter.animatePreviews = AppSettings.animatePreviews(this)
         fieldAccepts = StickerInserter.fieldAcceptsImages(info)
         when {
             !fieldAccepts -> showMessage(getString(R.string.kb_field_no_stickers), withButton = false)
@@ -139,8 +141,14 @@ class StickerKeyboardService : InputMethodService() {
         }
     }
 
+    override fun onWindowShown() {
+        super.onWindowShown()
+        if (root != null) adapter.resumeVisible(grid)
+    }
+
     override fun onFinishInputView(finishingInput: Boolean) {
         insertJob?.cancel()
+        if (root != null) adapter.stopAll() // keyboard hidden: no animations in the background
         super.onFinishInputView(finishingInput)
     }
 

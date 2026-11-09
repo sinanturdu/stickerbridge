@@ -11,7 +11,9 @@
         android:orientation="vertical"
         android:padding="20dp">
 
+        <!-- Long-press (debug builds): hidden "GIF size test". -->
         <TextView
+            android:id="@+id/appTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/app_name"
@@ -108,6 +110,27 @@
                 style="@style/SbStepBody"
                 android:layout_marginTop="8dp"
                 android:text="@string/switch_back" />
+        </LinearLayout>
+
+        <!-- Settings -->
+        <LinearLayout style="@style/SbCard">
+
+            <TextView
+                style="@style/SbStepTitle"
+                android:text="@string/settings_title" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchAnimatePreviews"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/settings_animate_previews"
+                android:textColor="@color/sb_text"
+                android:textSize="15sp" />
+
+            <TextView
+                style="@style/SbStepBody"
+                android:text="@string/settings_animate_previews_hint" />
         </LinearLayout>
 
         <!-- Status -->

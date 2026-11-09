@@ -26,6 +26,9 @@
     <string name="status_last_scan_never">Last successful scan: never</string>
     <string name="status_result">Last scan: %1$s</string>
     <string name="status_scan_now">Scan now</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_animate_previews">Animate previews</string>
+    <string name="settings_animate_previews_hint">Play animated stickers in the keyboard (Android 9+). Turn off to save battery.</string>
     <string name="onboarding_note">The folder holds stickers that appeared in your chats, not your WhatsApp favorites. Order is \"recently seen\" (file time), not WhatsApp\'s own order. Everything stays on this phone.</string>
 
     <!-- Keyboard -->
