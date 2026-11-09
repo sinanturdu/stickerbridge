@@ -60,6 +60,9 @@ class ScanCoordinator(
     )
     val state: StateFlow<ScanState> = _state.asStateFlow()
 
+    /** Called after every successful scan or quick check (e.g. GIF pre-conversion). */
+    @Volatile var onScanFinished: (() -> Unit)? = null
+
     init {
         scope.launch(Dispatchers.IO) { refreshCount() }
     }
@@ -253,6 +256,7 @@ class ScanCoordinator(
                 generation = if (changed) it.generation + 1 else it.generation,
             )
         }
+        if (success) onScanFinished?.invoke()
     }
 
     private suspend fun refreshCount(bumpGeneration: Boolean = false) {

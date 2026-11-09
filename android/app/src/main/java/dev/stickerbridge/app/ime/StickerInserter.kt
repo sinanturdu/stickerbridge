@@ -39,7 +39,8 @@ object StickerInserter {
     const val PNG_MIME = "image/png"
     private const val OUTGOING_DIR = "outgoing"
     private const val GIF_CACHE_DIR = "gifcache"
-    private const val KEEP_GIF_CACHE = 60
+    /** Conversion cache limit (LRU). */
+    const val MAX_GIF_CACHE_BYTES = 100L * 1024 * 1024
     private const val MAX_OUTGOING_AGE_MS = 24L * 60 * 60 * 1000
 
     fun fieldAcceptsImages(info: EditorInfo?): Boolean = advertised(info).any {
@@ -93,18 +94,9 @@ object StickerInserter {
      */
     fun prepareGif(context: Context, item: StickerGridItem, webp: ByteArray): GifOutcome {
         return try {
-            val cacheDir = File(context.cacheDir, GIF_CACHE_DIR).apply { mkdirs() }
-            val cached = File(cacheDir, cacheKey(item) + ".gif")
-            var result: AnimatedStickerConverter.Result? = null
-            val fromCache = cached.isFile && cached.length() > 0
-            if (fromCache) {
-                cached.setLastModified(System.currentTimeMillis())
-            } else {
-                trim(cacheDir, KEEP_GIF_CACHE)
-                result = AnimatedStickerConverter.convert(webp, cached)
-                    ?: return GifOutcome(null, null, false, "not decodable")
-                if (!cached.isFile) return GifOutcome(null, result, false, "output not written")
-            }
+            val fromCache = isGifCached(context, item)
+            val (cached, result) = ensureCachedGif(context, item, webp)
+            if (cached == null) return GifOutcome(null, result, false, if (result == null) "not decodable" else "output not written")
             val out = uniqueOutgoing(context, item.id, "gif")
             cached.copyTo(out, overwrite = false)
             keepDebugCopy(context, out, webp)
@@ -114,6 +106,36 @@ object StickerInserter {
         } catch (e: Exception) {
             GifOutcome(null, null, false, e.javaClass.simpleName)
         }
+    }
+
+    /** True if a converted GIF for this sticker version is in the conversion cache. */
+    fun isGifCached(context: Context, item: StickerGridItem): Boolean =
+        gifCacheFile(context, item).let { it.isFile && it.length() > 0 }
+
+    /**
+     * Makes sure the conversion cache holds a GIF for this sticker version (background thread).
+     * Returns the cached file (or null) and the conversion result (null when it was cached).
+     * Also used by the background pre-converter.
+     */
+    fun ensureCachedGif(context: Context, item: StickerGridItem, webp: ByteArray): Pair<File?, AnimatedStickerConverter.Result?> {
+        val cached = gifCacheFile(context, item)
+        if (cached.isFile && cached.length() > 0) {
+            cached.setLastModified(System.currentTimeMillis()) // LRU touch
+            return cached to null
+        }
+        val result = AnimatedStickerConverter.convert(webp, cached) ?: return null to null
+        trimToBytes(cached.parentFile!!, MAX_GIF_CACHE_BYTES, keep = cached)
+        return (if (cached.isFile) cached else null) to result
+    }
+
+    private fun gifCacheFile(context: Context, item: StickerGridItem): File =
+        File(File(context.cacheDir, GIF_CACHE_DIR).apply { mkdirs() }, cacheKey(item) + ".gif")
+
+    /** LRU by last use (file time): deletes oldest GIFs until the cache is at most [maxBytes]. */
+    private fun trimToBytes(dir: File, maxBytes: Long, keep: File) {
+        val files = dir.listFiles()?.filter { it.isFile && it.name.endsWith(".gif") } ?: return
+        val entries = files.map { dev.stickerbridge.app.convert.LruPolicy.Entry(it.name, it.length(), it.lastModified()) }
+        for (name in dev.stickerbridge.app.convert.LruPolicy.evict(entries, maxBytes, keep.name)) File(dir, name).delete()
     }
 
     /**
@@ -207,8 +229,4 @@ object StickerInserter {
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    /** Keeps the newest [keep] files of the private conversion cache. */
-    private fun trim(dir: File, keep: Int) {
-        dir.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() }?.drop(keep)?.forEach { it.delete() }
-    }
 }
