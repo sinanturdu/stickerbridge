@@ -1,9 +1,10 @@
 # Research summary
 
-Research date: 2026-11-09. **Nothing here has been tested on a device yet.**
+Research date: 2026-11-09. Only rows labelled ✅ prototype were tested on a device (E1: one Samsung device, one Instagram Android version, 2026-11-09). Everything else is untested.
 
 Each finding carries one label:
 - ✅ official docs
+- ✅ prototype — verified with a working prototype on a real device (see the linked experiment)
 - 🔎 seen in third-party code or reports (needs verification)
 - 💭 technical inference (not tested)
 - ⛔ unsupported or not accessible
@@ -27,18 +28,19 @@ Each finding carries one label:
 | Finding | Label |
 |---|---|
 | There is no way to add a personal collection to Instagram's sticker tray. GIPHY channels are public, moderated and require brand verification. | ✅ [12] |
-| Whether Instagram's Android fields accept keyboard images (`commitContent` MIME types) is unknown. | 💭 → **E1** |
+| Instagram's Android DM composer and Story text tool accept keyboard images via `commitContent`. DM advertises `image/png`, `image/jpeg`, `image/gif`; PNG, WEBP (not advertised), animated WEBP and GIF all return `true` and are sent immediately with one tap. Stories insert them as movable sticker layers. The comment field advertises no MIME types (no rich content). | ✅ prototype → [E1](experiments/E1-ime-probe.md) |
 | Share to Stories places a static PNG or JPG as a sticker layer. It requires a Facebook App ID and does not support animation. | ✅ [13] |
 | An iOS keyboard cannot insert images directly. It copies to the clipboard (needs Full Access) and the user pastes. | 🔎 💭 [14] |
 | On iOS Stories, a pasted image becomes a sticker layer. Reports say transparency turns black and GIFs freeze after posting. | 🔎 [15] |
-| In DMs, images are probably sent as normal photos, losing transparency and animation. | 💭 → **E2** |
+| DM transparency: lost — the sticker is shown on a white card (sender view, on light, dark and patterned themes). Stories keep transparency in the editor and after posting. Recipient view on iOS and Web not yet checked. | ✅ prototype → [E1](experiments/E1-ime-probe.md); recipient → **E2** |
+| Animation via keyboard insertion: GIF animates in DM and Stories; animated WEBP shows only the first frame in both. | ✅ prototype → [E1](experiments/E1-ime-probe.md) |
 | Instagram APIs serve only Business and Creator accounts. Personal accounts need no account linking. | ✅ [16] |
 
 ## Conclusion
 Not every requirement can be met through official means at the same time:
 - Favorites and their order are reachable only through the unofficial linked-device path.
 - iOS has no automatic sync.
-- A "real sticker" look in Instagram is likely limited to static PNG in Stories.
+- A "real sticker" look (transparent, animated as GIF) works in Stories via the keyboard; DMs show stickers on a white card (E1).
 
 ## Sources
 1. https://github.com/WhatsApp/stickers/blob/master/Android/README.md
