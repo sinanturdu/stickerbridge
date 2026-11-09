@@ -13,4 +13,27 @@
         android:foreground="?attr/selectableItemBackground"
         android:padding="4dp"
         android:scaleType="fitCenter" />
+
+    <TextView
+        android:id="@+id/stickerBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="3dp"
+        android:background="@drawable/badge_background"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:text="@string/kb_gif_badge"
+        android:textColor="#FFFFFFFF"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <ProgressBar
+        android:id="@+id/stickerBusy"
+        style="?android:attr/progressBarStyleSmall"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_gravity="center"
+        android:visibility="gone" />
 </FrameLayout>

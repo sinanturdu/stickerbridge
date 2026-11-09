@@ -42,4 +42,6 @@
     <string name="kb_empty">No stickers found in the connected folder.</string>
     <string name="kb_insert_failed">This app didn\'t accept the sticker</string>
     <string name="kb_insert_error">Couldn\'t read this sticker</string>
+    <string name="kb_gif_badge">GIF</string>
+
 </resources>

@@ -177,15 +177,34 @@ class StickerKeyboardService : InputMethodService() {
                 toast(R.string.kb_insert_error)
                 return@launch
             }
+            // Cheap header check (first 64 bytes) of the real file; corrects the stored flag.
+            val animated = withContext(Dispatchers.IO) { StickerInserter.isAnimatedWebp(file) }
+            adapter.setAnimated(item.id, animated)
+            if (item.isAnimated != animated) {
+                app.appScope.launch(Dispatchers.IO) { app.database.stickerDao().setAnimated(item.id, animated) }
+            }
+
+            var sendFile = file
+            var mime = StickerInserter.WEBP_MIME
+            if (animated && StickerInserter.fieldAcceptsGif(currentInputEditorInfo)) {
+                adapter.setBusy(item.id, true)
+                val gif = try {
+                    withContext(Dispatchers.Default) { StickerInserter.gifFor(this@StickerKeyboardService, item, file) }
+                } finally {
+                    adapter.setBusy(item.id, false)
+                }
+                if (gif != null) {
+                    sendFile = gif
+                    mime = StickerInserter.GIF_MIME
+                }
+                // gif == null: conversion failed -> send the WEBP (Instagram shows the first frame).
+            }
+
             val ic = currentInputConnection
             val info = currentInputEditorInfo
             val ok = ic != null && info != null &&
-                runCatching { StickerInserter.commit(this@StickerKeyboardService, ic, info, file) }.getOrDefault(false)
+                runCatching { StickerInserter.commit(this@StickerKeyboardService, ic, info, sendFile, mime) }.getOrDefault(false)
             if (!ok) toast(R.string.kb_insert_failed)
-            // Remember whether it is animated (used from A2 on); cheap header check.
-            launch(Dispatchers.IO) {
-                app.database.stickerDao().setAnimated(item.id, StickerInserter.isAnimatedWebp(file))
-            }
         }
     }
 
