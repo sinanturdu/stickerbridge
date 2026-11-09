@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, R.string.folder_unexpected, Toast.LENGTH_LONG).show()
             }
             renderFolders()
-            app.scans.request(ScanTrigger.ONBOARDING)
+            app.scans.request(ScanTrigger.FOLDER_CONNECTED)
         }
     }
 

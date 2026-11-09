@@ -11,7 +11,9 @@ A sticker keyboard that shows the stickers from your WhatsApp stickers folder an
   3. Status: number of stickers, last successful scan, last scan result.
 - **Library:** app-private Room database (`sticker_file`). The file time from the folder is shown as **"recently seen"**, never as "added to WhatsApp".
 - **Scanner:** one folder listing per scan, incremental diff (new / changed / missing). A file is archived only after 3 consecutive *complete* scans without it; failed or partial scans never count as missing.
-  - Scans run when the keyboard opens (at most once per 60 s), when you tap ↻, and when the onboarding screen opens.
+  - ↻ and connecting a folder always list every file. Opening the keyboard or the app does nothing if the last complete scan is under 5 minutes old; otherwise it first does a quick check (the folder's own time + number of files) and lists files only if something changed (a full listing still happens at least every 24 h).
+  - The grid always shows the saved library immediately; "Syncing…" appears only while files are actually being listed. Unchanged files cause no database writes.
+  - Debug builds log scan timings with tag `SB-Scan` and animated sends with tag `SB-Gif` (`adb logcat -s SB-Scan SB-Gif`). The last converted GIF is kept at `/sdcard/Android/data/dev.stickerbridge.app/files/debug/last.gif`.
 - **Keyboard "StickerBridge":**
   - ◀ Keyboard (back to your normal keyboard), ↻ refresh with spinner and last sync time, 4-column grid.
   - **Tabs** (like WhatsApp): **Recent** (clock), **Favorites** (star), **All** (grid). The last tab you tapped is remembered. If you never tapped one: All on first use, afterwards Recent once it has stickers.

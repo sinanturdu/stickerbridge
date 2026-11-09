@@ -162,7 +162,10 @@ class StickerKeyboardService : InputMethodService() {
         if (s.generation != lastGeneration) {
             lastGeneration = s.generation
             if (fieldAccepts && StickerFolders.connected(this).isNotEmpty()) reloadGrid()
-        } else if (!s.running && fieldAccepts && adapter.itemCount == 0 && StickerFolders.connected(this).isNotEmpty()) {
+        } else if (!s.running && fieldAccepts && currentTab == Tab.ALL && adapter.itemCount == 0 &&
+            StickerFolders.connected(this).isNotEmpty()
+        ) {
+            // Only the All tab says "no stickers found"; Recent/Favorites keep their own empty text.
             showMessage(getString(R.string.kb_empty), withButton = false)
         }
     }

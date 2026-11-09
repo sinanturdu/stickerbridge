@@ -5,8 +5,16 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
 
-/** Result of listing one folder. [complete] is false if the listing failed or was cut short. */
-data class FolderListing(val docs: List<ScannedDoc>, val complete: Boolean, val error: String? = null)
+/**
+ * Result of listing one folder. [complete] is false if the listing failed or was cut short.
+ * [childCount] counts every child row (also .nomedia and non-stickers), like [FolderScanner.stamp].
+ */
+data class FolderListing(
+    val docs: List<ScannedDoc>,
+    val complete: Boolean,
+    val error: String? = null,
+    val childCount: Int = 0,
+)
 
 /**
  * Lists a connected folder with ONE DocumentsContract children query
@@ -55,13 +63,36 @@ class FolderScanner(private val resolver: ContentResolver) {
                 }
                 // If the cursor delivered fewer rows than it announced, treat the scan as partial.
                 val complete = c.count < 0 || rows == c.count
-                FolderListing(docs, complete, if (complete) null else "listing cut short")
+                FolderListing(docs, complete, if (complete) null else "listing cut short", childCount = rows)
             }
         } catch (e: SecurityException) {
             FolderListing(emptyList(), complete = false, error = "access lost - reconnect the folder")
         } catch (e: Exception) {
             FolderListing(emptyList(), complete = false, error = e.javaClass.simpleName)
         }
+    }
+
+    /** The folder's own last-modified time (changes when files are added or removed), or 0. */
+    fun folderLastModified(treeUri: Uri): Long = try {
+        val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
+        resolver.query(docUri, arrayOf(Document.COLUMN_LAST_MODIFIED), null, null, null)?.use { c ->
+            if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else 0L
+        } ?: 0L
+    } catch (e: Exception) {
+        0L
+    }
+
+    /**
+     * Quick fingerprint: folder last-modified + number of children, querying only the
+     * document id column (no per-file size/time). Returns null if the folder can't be read.
+     */
+    fun stamp(treeUri: Uri): FolderStamp? = try {
+        val modified = folderLastModified(treeUri)
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
+        val count = resolver.query(childrenUri, arrayOf(Document.COLUMN_DOCUMENT_ID), null, null, null)?.use { it.count }
+        if (count == null || count < 0) null else FolderStamp(modified, count)
+    } catch (e: Exception) {
+        null
     }
 
     private fun isSticker(name: String, mime: String): Boolean =
