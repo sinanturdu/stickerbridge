@@ -45,7 +45,7 @@ We publish what is verified and what is not. Details and sources: [docs/RESEARCH
 | iOS | No app can read WhatsApp's data on iOS. iOS support = keyboard + manual import + copy/paste. |
 | Instagram's built-in sticker tray | Cannot be extended by third parties. StickerBridge is a **custom keyboard**, not a tray add-on. |
 | Adding a key to Gboard / Samsung Keyboard | Not possible. The sticker key lives in the StickerBridge keyboard. |
-| Transparency & animation in Instagram | Likely lost in DMs (sent as a photo); Stories may keep static PNG transparency. *(Experiments E1–E3)* |
+| Transparency & animation in Instagram | Tested on one Android device: DMs show stickers on a white card (no transparency); Stories keep transparency. GIF animates in both; animated WEBP stays static, so animated stickers are converted to GIF. iOS/Web recipient view not yet checked. *(E1; E2–E3 pending)* |
 
 ## Privacy principles
 
@@ -80,8 +80,8 @@ stickerbridge/
 
 | ID | Question | Status |
 |---|---|---|
-| E0 | What is really inside WhatsApp's Android sticker folder? | Planned |
-| E1 | Which image types do Instagram's input fields accept from a keyboard? | **Next** |
+| E0 | What is really inside WhatsApp's Android sticker folder? | **Next** |
+| E1 | Which image types do Instagram's input fields accept from a keyboard? | Done — DM and Stories accept PNG/WEBP/GIF via `commitContent`; comments accept none |
 | E2 | How does each format look to the recipient (transparency, animation)? | Planned |
 | E3 | Does Instagram "Share to Stories" keep a transparent sticker? | Planned |
 | E4 | iOS copy/paste behavior in DM and Stories | Planned |
