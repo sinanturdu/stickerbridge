@@ -2,3 +2,8 @@
 /app/build/
 /build/
 /local.properties
+
+# Debug files pulled from the phone (personal stickers) - never commit
+/last.gif
+/size_*.gif
+/last_source.webp
