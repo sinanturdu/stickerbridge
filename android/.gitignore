@@ -1,0 +1,4 @@
+# Repo-level .gitignore already covers build/, .gradle/, .idea/, local.properties, *.apk, keystores.
+/app/build/
+/build/
+/local.properties
