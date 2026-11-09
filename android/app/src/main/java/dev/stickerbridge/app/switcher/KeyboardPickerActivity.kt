@@ -9,50 +9,74 @@ import android.os.Looper
 import android.view.inputmethod.InputMethodManager
 
 /**
- * Tiny transparent activity that opens the system keyboard picker, then finishes.
+ * Invisible host for the system keyboard picker ("Choose input method").
  * Used by the Quick Settings tile and the launcher shortcut (same activity, same flow).
  *
- * The system shows the picker only for the app whose window currently has input focus,
- * and the input method service learns about that focus slightly after
- * onWindowFocusChanged(true). So the picker is requested [PICKER_DELAY_MS] after focus.
- * The activity stays alive until the picker takes focus away (or at least
- * [MIN_ALIVE_MS] after the request), and gives up after [TIMEOUT_MS].
+ * The picker dialog belongs to the focused window's client, so this activity must stay
+ * alive while the picker is open; finishing early closes the picker with it. The flow is
+ * driven only by window focus, not by timers:
+ *
+ *  1. first focus gained  -> request the picker (once, after a short post so the input
+ *                            method service has registered this window as focused)
+ *  2. focus lost          -> the picker is showing: pickerShown = true
+ *  3. focus regained      -> the user picked a keyboard or dismissed the picker: finish()
+ *
+ * Safety nets: finish in onPause/onStop once the picker has been shown (user left), and a
+ * 30 s fallback timeout in case the picker never appears.
  */
 class KeyboardPickerActivity : Activity() {
 
     private val handler = Handler(Looper.getMainLooper())
-    private var pickerRequestedAt = 0L
+    private var pickerRequested = false
+    private var pickerShown = false
 
     private val requestPicker = Runnable {
-        if (isFinishing) return@Runnable
-        pickerRequestedAt = System.currentTimeMillis()
+        if (isFinishing || pickerRequested) return@Runnable
+        pickerRequested = true
         SwitchLog.d(this, "picker requested")
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
-        // Fallback finish if focus never changes (e.g. the picker was not shown).
-        handler.postDelayed(finishRunnable, FALLBACK_FINISH_MS)
     }
 
-    private val finishRunnable = Runnable { if (!isFinishing) finish() }
+    private val fallbackFinish = Runnable {
+        SwitchLog.d(this, "fallback timeout (picker shown=$pickerShown)")
+        finishHost("timeout")
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SwitchLog.d(this, "activity created")
-        handler.postDelayed(finishRunnable, TIMEOUT_MS)
+        handler.postDelayed(fallbackFinish, FALLBACK_TIMEOUT_MS)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus && pickerRequestedAt == 0L) {
-            SwitchLog.d(this, "focus gained")
-            handler.removeCallbacks(requestPicker)
-            handler.postDelayed(requestPicker, PICKER_DELAY_MS)
-        } else if (!hasFocus && pickerRequestedAt != 0L) {
-            // The picker dialog took focus: finish, but not before it had time to appear.
-            SwitchLog.d(this, "focus lost to picker")
-            val alive = System.currentTimeMillis() - pickerRequestedAt
-            handler.removeCallbacks(finishRunnable)
-            handler.postDelayed(finishRunnable, (MIN_ALIVE_MS - alive).coerceAtLeast(0L))
+        when {
+            hasFocus && !pickerRequested -> {
+                SwitchLog.d(this, "focus gained")
+                handler.removeCallbacks(requestPicker)
+                handler.postDelayed(requestPicker, PICKER_DELAY_MS)
+            }
+            !hasFocus && pickerRequested -> {
+                if (!pickerShown) SwitchLog.d(this, "focus lost -> picker shown")
+                pickerShown = true
+            }
+            hasFocus && pickerShown -> {
+                SwitchLog.d(this, "focus regained -> picker closed")
+                finishHost("picker closed")
+            }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // The picker is a dialog window, not an activity, so it does not pause us.
+        // Being paused after it was shown means the user left (home, recents, another app).
+        if (pickerShown) finishHost("paused after picker")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (pickerShown || pickerRequested) finishHost("stopped")
     }
 
     override fun onDestroy() {
@@ -60,17 +84,17 @@ class KeyboardPickerActivity : Activity() {
         super.onDestroy()
     }
 
-    override fun finish() {
-        super.finish()
+    private fun finishHost(reason: String) {
+        if (isFinishing) return
+        SwitchLog.d(this, "finished ($reason)")
+        finish()
         @Suppress("DEPRECATION")
         overridePendingTransition(0, 0)
     }
 
     companion object {
         private const val PICKER_DELAY_MS = 150L
-        private const val MIN_ALIVE_MS = 500L
-        private const val FALLBACK_FINISH_MS = 1_500L
-        private const val TIMEOUT_MS = 10_000L
+        private const val FALLBACK_TIMEOUT_MS = 30_000L
 
         fun intent(context: Context): Intent =
             Intent(context, KeyboardPickerActivity::class.java).addFlags(

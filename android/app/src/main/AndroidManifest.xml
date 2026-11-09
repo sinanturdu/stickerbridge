@@ -40,9 +40,9 @@
             android:exported="true"
             android:label="@string/shortcut_switch_short"
             android:launchMode="singleInstance"
-            android:noHistory="true"
+            android:noHistory="false"
             android:taskAffinity=""
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+            android:theme="@style/Theme.StickerBridge.PickerHost" />
 
         <!-- Quick Settings tile "StickerBridge" -> keyboard picker. -->
         <service

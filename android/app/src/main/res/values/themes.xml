@@ -16,6 +16,19 @@
         <item name="colorAccent">@color/sb_accent</item>
     </style>
 
+    <!-- Fully transparent, no title, no animation, no dim: host for the keyboard picker. -->
+    <style name="Theme.StickerBridge.PickerHost" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
     <style name="SbKeyboardTab">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">match_parent</item>
