@@ -28,6 +28,7 @@
     <string name="status_scan_now">Scan now</string>
     <string name="settings_title">Settings</string>
     <string name="kb_tab_debug">Debug</string>
+    <string name="kb_debug_no_link_uri">Variant B: no Debug linkUri set (sent without linkUri)</string>
     <string name="kb_title_debug">GIF size test</string>
     <string name="debug_gif_test_running">GIF size test: converting…</string>
     <string name="debug_gif_test_no_source">GIF size test: send an animated sticker from the keyboard first</string>

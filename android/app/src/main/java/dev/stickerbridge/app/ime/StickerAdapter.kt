@@ -180,6 +180,11 @@ class StickerAdapter(
     private fun bindState(holder: Holder, item: StickerGridItem) {
         val animated = learnedAnimated[item.id] ?: item.isAnimated
         holder.badge.visibility = if (animated == true) View.VISIBLE else View.GONE
+        holder.badge.text = if (item.sourceUri == DEBUG_SOURCE) {
+            dev.stickerbridge.app.debug.GifSizeTest.badgeOf(item) // debug tiles: "240px" or variant "A".."D"
+        } else {
+            holder.badge.context.getString(R.string.kb_gif_badge)
+        }
         holder.busy.visibility = if (item.id in busyIds) View.VISIBLE else View.GONE
         holder.star.visibility = if (showStars && item.id in favoriteIds) View.VISIBLE else View.GONE
     }

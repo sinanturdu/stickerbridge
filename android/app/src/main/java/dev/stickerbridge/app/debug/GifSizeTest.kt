@@ -39,23 +39,49 @@ object GifSizeTest {
         return entries
     }
 
+    /**
+     * DM delivery variants of the 240 px GIF (same file, different commitContent details):
+     * A = as now; B = linkUri from the "Debug linkUri" setting; C = description label "image";
+     * D = description MIME types "image/gif" plus the wildcard "image" type.
+     */
+    enum class Variant(val letter: String) { A("A"), B("B"), C("C"), D("D") }
+
+    private const val VARIANT_SIDE = 240
+    private const val VARIANT_ID_BASE = 1000L
+
     /** Grid items for the keyboard's Debug tab (empty if the test has not been run). */
     fun gridItems(context: Context): List<StickerGridItem> {
         val dir = StickerInserter.debugDir(context) ?: return emptyList()
-        return SIDES.toList().mapNotNull { side ->
+        val sizes = SIDES.toList().mapNotNull { side ->
             val f = File(dir, "size_$side.gif")
-            if (!f.isFile) null else StickerGridItem(
-                id = -side.toLong(), // negative ids never collide with library rows
-                sourceUri = StickerAdapter.DEBUG_SOURCE,
-                documentId = f.absolutePath,
-                mime = StickerInserter.GIF_MIME,
-                lastModified = f.lastModified(),
-                isAnimated = true,
-            )
+            if (!f.isFile) null else item(-side.toLong(), f) // negative ids never collide with library rows
         }
+        val variantFile = File(dir, "size_$VARIANT_SIDE.gif")
+        val variants = if (!variantFile.isFile) emptyList() else Variant.values().map { v ->
+            item(-(VARIANT_ID_BASE + 1 + v.ordinal), variantFile)
+        }
+        return sizes + variants
     }
+
+    private fun item(id: Long, f: File) = StickerGridItem(
+        id = id,
+        sourceUri = StickerAdapter.DEBUG_SOURCE,
+        documentId = f.absolutePath,
+        mime = StickerInserter.GIF_MIME,
+        lastModified = f.lastModified(),
+        isAnimated = true,
+    )
 
     fun isDebugItem(item: StickerGridItem) = item.sourceUri == StickerAdapter.DEBUG_SOURCE
 
-    fun sideOf(item: StickerGridItem) = (-item.id).toInt()
+    /** Delivery variant of a Debug-tab tile, or null for the plain size tiles. */
+    fun variantOf(item: StickerGridItem): Variant? {
+        val n = -item.id - VARIANT_ID_BASE - 1
+        return if (isDebugItem(item) && n in 0 until Variant.values().size) Variant.values()[n.toInt()] else null
+    }
+
+    fun sideOf(item: StickerGridItem) = if (variantOf(item) != null) VARIANT_SIDE else (-item.id).toInt()
+
+    /** Short label drawn on the Debug-tab tile. */
+    fun badgeOf(item: StickerGridItem): String = variantOf(item)?.letter ?: "${sideOf(item)}px"
 }

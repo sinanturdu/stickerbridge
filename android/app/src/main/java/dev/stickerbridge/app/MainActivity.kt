@@ -91,15 +91,42 @@ class MainActivity : AppCompatActivity() {
             setOnCheckedChangeListener { _, on -> AppSettings.setAnimatePreviews(this@MainActivity, on) }
         }
 
-        // Hidden debug tool (debug builds only): long-press the title for the "GIF size test".
+        // Hidden debug menu (debug builds only): long-press the title.
         if (DebugLog.isDebuggable(this)) {
-            findViewById<View>(R.id.appTitle).setOnLongClickListener {
-                runGifSizeTest()
+            findViewById<View>(R.id.appTitle).setOnLongClickListener { anchor ->
+                androidx.appcompat.widget.PopupMenu(this, anchor).apply {
+                    menu.add(0, 1, 0, "GIF size test")
+                    menu.add(0, 2, 1, "Receive test")
+                    menu.add(0, 3, 2, "Debug linkUri…")
+                    setOnMenuItemClickListener { item ->
+                        when (item.itemId) {
+                            1 -> runGifSizeTest()
+                            2 -> startActivity(android.content.Intent(this@MainActivity, dev.stickerbridge.app.debug.ReceiveTestActivity::class.java))
+                            3 -> editDebugLinkUri()
+                        }
+                        true
+                    }
+                }.show()
                 true
             }
         }
 
         uiScope.launch { app.scans.state.collect { renderStatus(it) } }
+    }
+
+    /** Debug: linkUri used by delivery variant B in the keyboard's Debug tab. */
+    private fun editDebugLinkUri() {
+        val input = android.widget.EditText(this).apply {
+            setText(AppSettings.debugLinkUri(this@MainActivity))
+            hint = "https://…  (empty = no linkUri)"
+            isSingleLine = true
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Debug linkUri (variant B)")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ -> AppSettings.setDebugLinkUri(this, input.text.toString()) }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun runGifSizeTest() {

@@ -190,15 +190,25 @@ object StickerInserter {
     const val DEBUG_SOURCE_NAME = "last_source.webp"
 
     /** Must run on the main thread with the current input connection. */
-    fun commit(context: Context, ic: InputConnection, info: EditorInfo, file: File, mime: String): Boolean {
+    fun commit(
+        context: Context,
+        ic: InputConnection,
+        info: EditorInfo,
+        file: File,
+        mime: String,
+        /** Debug delivery variants only: overrides for the description label / extra MIME / linkUri. */
+        labelOverride: String? = null,
+        extraMimes: List<String> = emptyList(),
+        linkUri: Uri? = null,
+    ): Boolean {
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         // The URI must end in the right extension and resolve to the same MIME type we
         // announce (the E1 probe GIF ended in .gif). Logged: suffix and types only.
         val resolvedType = runCatching { context.contentResolver.getType(uri) }.getOrNull()
         val suffix = uri.lastPathSegment?.substringAfterLast('.', "")?.let { ".$it" } ?: "?"
         DebugLog.d(context, DebugLog.GIF, "commit uri suffix=$suffix resolverType=$resolvedType announced=$mime match=${resolvedType == mime}")
-        val label = if (mime == GIF_MIME) "GIF" else "Sticker"
-        val content = InputContentInfoCompat(uri, ClipDescription(label, arrayOf(mime)), null)
+        val label = labelOverride ?: if (mime == GIF_MIME) "GIF" else "Sticker"
+        val content = InputContentInfoCompat(uri, ClipDescription(label, (listOf(mime) + extraMimes).toTypedArray()), linkUri)
         // The grant is intentionally never released here (no releasePermission()): the
         // receiving app may read the URI after commitContent returns.
         return InputConnectionCompat.commitContent(

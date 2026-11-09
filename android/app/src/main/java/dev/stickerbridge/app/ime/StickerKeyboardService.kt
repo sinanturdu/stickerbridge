@@ -304,15 +304,31 @@ class StickerKeyboardService : InputMethodService() {
             val file = withContext(Dispatchers.IO) {
                 runCatching { StickerInserter.prepareExistingGif(this@StickerKeyboardService, item.id, source) }.getOrNull()
             } ?: return@launch toast(R.string.kb_insert_error)
+            val ctx = this@StickerKeyboardService
+            val variant = GifSizeTest.variantOf(item)
+            // Delivery variants (DM investigation): same 240 px file, different commitContent details.
+            var label: String? = null
+            var extraMimes = emptyList<String>()
+            var linkUri: android.net.Uri? = null
+            when (variant) {
+                GifSizeTest.Variant.B -> linkUri = AppSettings.debugLinkUri(ctx).takeIf { it.isNotEmpty() }?.let { android.net.Uri.parse(it) }
+                GifSizeTest.Variant.C -> label = "image"
+                GifSizeTest.Variant.D -> extraMimes = listOf("image/*")
+                else -> Unit
+            }
             val ic = currentInputConnection
             val info = currentInputEditorInfo
             val ok = ic != null && info != null &&
-                runCatching { StickerInserter.commit(this@StickerKeyboardService, ic, info, file, StickerInserter.GIF_MIME) }.getOrDefault(false)
+                runCatching {
+                    StickerInserter.commit(ctx, ic, info, file, StickerInserter.GIF_MIME, label, extraMimes, linkUri)
+                }.getOrDefault(false)
             DebugLog.d(
-                this@StickerKeyboardService, DebugLog.GIF,
-                "size test send: ${GifSizeTest.sideOf(item)}px, ${file.length() / 1024} KB, commitContent=$ok " +
-                    "(check the chat: did Instagram accept it?)",
+                ctx, DebugLog.GIF,
+                "size test send: ${GifSizeTest.sideOf(item)}px variant=${variant?.letter ?: "-"} " +
+                    "label=${label ?: "GIF"} mimes=${listOf(StickerInserter.GIF_MIME) + extraMimes} linkUri=${linkUri ?: "none"} " +
+                    "${file.length() / 1024} KB, commitContent=$ok (check the chat: did Instagram accept it?)",
             )
+            if (variant == GifSizeTest.Variant.B && linkUri == null) toast(R.string.kb_debug_no_link_uri)
             if (!ok) toast(R.string.kb_insert_failed)
         }
     }
