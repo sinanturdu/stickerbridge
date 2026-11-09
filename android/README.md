@@ -13,7 +13,13 @@ A sticker keyboard that shows the stickers from your WhatsApp stickers folder an
 - **Scanner:** one folder listing per scan, incremental diff (new / changed / missing). A file is archived only after 3 consecutive *complete* scans without it; failed or partial scans never count as missing.
   - Scans run when the keyboard opens (at most once per 60 s), when you tap ↻, and when the onboarding screen opens.
 - **Keyboard "StickerBridge":**
-  - ◀ Keyboard (back to your normal keyboard), ↻ refresh with spinner and last sync time, 4-column grid ordered by "recently seen".
+  - ◀ Keyboard (back to your normal keyboard), ↻ refresh with spinner and last sync time, 4-column grid.
+  - **Tabs** (like WhatsApp): **Recent** (clock), **Favorites** (star), **All** (grid). The last tab you tapped is remembered. If you never tapped one: All on first use, afterwards Recent once it has stickers.
+    - **Recent:** the last 32 different stickers you sent, newest first. Sending one again moves it to the top. Only successful inserts count. The history keeps at most 200 send events.
+    - **Favorites:** StickerBridge's own favorites, newest first. (WhatsApp favorites are not read here; merging them is planned for A3 via the experimental linked-device source.)
+    - **All:** every sticker in the connected folder(s), ordered by "recently seen".
+    - Favorites show a small ★ in Recent and All.
+    - Stickers that disappear from the folder (archived) or whose folder is disconnected are hidden from Recent and Favorites, but not forgotten: they come back when the file reappears or the folder is reconnected.
   - Tap a sticker to insert it via `commitContent`. A toast appears if the app refuses it.
     - **Static stickers** are sent as `image/webp`.
     - **Animated stickers** (marked with a small **GIF** badge) are converted to GIF on tap (spinner on the tile) and sent as `image/gif`, because Instagram plays GIF but freezes animated WEBP (E1). If the field does not advertise `image/gif`, or the conversion fails, the WEBP is sent instead.
@@ -52,6 +58,11 @@ cd android
 ```
 APK: `android\app\build\outputs\apk\debug\app-debug.apk`
 
+## Favorites and Recent: how to use
+- **Add to favorites:** long-press a sticker in any tab → **Add to favorites**. It appears at the top of Favorites.
+- **Remove from favorites:** long-press → **Remove from favorites**.
+- **Remove from recent:** in the Recent tab, long-press → **Remove from recent**.
+
 ## Install
 ```powershell
 adb install -r app\build\outputs\apk\debug\app-debug.apk
@@ -69,6 +80,15 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 
 Menu names can differ between One UI versions.
 
+## Database upgrades
+The library uses Room with explicit migrations only (no destructive fallback); the schema history is exported to `app/schemas/` and checked in.
+`MigrationSqlTest` checks on the JVM that the v1 → v2 migration SQL matches Room's exported v2 schema exactly. Room's `MigrationTestHelper` would need instrumented tests and androidx.test, which are not approved dependencies.
+
+**Manual upgrade check (v1 → v2), once per release that changes the schema:**
+1. Install the previous build (schema v1), connect the folder and let it scan.
+2. Install the new build over it with `adb install -r app\build\outputs\apk\debug\app-debug.apk` (do not uninstall).
+3. Open the keyboard: All still shows the stickers (no re-scan from zero, count unchanged on the status screen), and Recent/Favorites work. A crash on open means the migration does not match.
+
 ## Current limitations
 - **GIF quality:** GIF has 1-bit transparency and at most 255 colors per frame, so soft edges can show a slight halo and gradients can band.
 - Lottie stickers are not handled (E0 found only `.webp` files in the stickers folder).
@@ -83,11 +103,12 @@ Menu names can differ between One UI versions.
 app/src/main/java/dev/stickerbridge/app/
   MainActivity.kt          onboarding
   StickerBridgeApp.kt      database + scan coordinator
-  data/                    Room entity, DAO, database
+  data/                    Room entities, DAOs, database + Migrations, StickerLibrary (Recent/Favorites), TabLogic (pure)
   scan/                    ScanDiff (pure, unit-tested), FolderScanner (SAF), ScanCoordinator, StickerFolders
   ime/                     StickerKeyboardService, StickerAdapter, ThumbnailLoader, StickerInserter
   convert/                 WebpAnimDecoder (JNI), GifEncoder + ColorQuantizer + Lzw, GifPlanning, ArgbScaler, WebpHeader
   switcher/                KeyboardTileService (Quick Settings), KeyboardPickerActivity
 app/src/main/cpp/          CMake build, JNI bridge, third_party/libwebp (vendored v1.5.0 subset)
-app/src/test/              ScanDiffTest, GifEncoderTest, GifPlanningTest, WebpHeaderTest
+app/schemas/               exported Room schemas (checked in)
+app/src/test/              ScanDiffTest, GifEncoderTest, GifPlanningTest, WebpHeaderTest, TabLogicTest, MigrationSqlTest
 ```

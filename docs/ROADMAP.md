@@ -24,6 +24,7 @@ Rule: critical technical assumptions are proven with small experiments before pr
 - Insertion via `commitContent` as `image/webp` (decided by E1); no stickers in fields without image MIME types (e.g. comments)
 - [x] Animated stickers converted to GIF on tap (libwebp decode + own GIF89a encoder; 1-bit alpha, possible edge halo) — moved from A2
 - [x] Quick Settings tile and launcher shortcut to get back to the sticker keyboard
+- [x] Keyboard tabs like WhatsApp: Recent (last 32 sent), Favorites (StickerBridge's own, long-press to add/remove), All; Room schema v2 with an explicit migration
 
 ### A2 — sending quality and manual add
 - Static stickers sent as WEBP, with PNG conversion as fallback
@@ -37,6 +38,7 @@ Rule: critical technical assumptions are proven with small experiments before pr
 - Planned as a gomobile-bound Go library on-device (inference, untested)
 - Favorites list derived idempotently from app state mutations, ordered by timestamp
 - Separate conversion path for Lottie favorites
+- **A3:** merge WhatsApp favorites into the existing Favorites tab as `sticker_favorite` rows with `source = WHATSAPP` (column already in schema v2, no migration needed); the tab label stays "Favorites"
 
 ## Phase 3 — iOS
 - Keyboard extension with copy/paste flow, manual import via share sheet
