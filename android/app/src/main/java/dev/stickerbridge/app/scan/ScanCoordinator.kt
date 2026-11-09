@@ -27,6 +27,8 @@ data class ScanState(
     /** Wall-clock time of the last scan (full or quick check) that covered every folder. */
     val lastSuccessAt: Long = 0L,
     val lastResult: String = "Not scanned yet",
+    /** Duration of that last successful scan or check, in ms (shown as "Synced in 1.4 s"). */
+    val lastDurationMs: Long = -1L,
     /** Increments after every scan that touched the database. */
     val generation: Int = 0,
 )
@@ -54,6 +56,7 @@ class ScanCoordinator(
         ScanState(
             lastSuccessAt = prefs.getLong(KEY_LAST_SUCCESS, 0L),
             lastResult = prefs.getString(KEY_LAST_RESULT, null) ?: "Not scanned yet",
+            lastDurationMs = prefs.getLong(KEY_LAST_DURATION, -1L),
         )
     )
     val state: StateFlow<ScanState> = _state.asStateFlow()
@@ -114,16 +117,16 @@ class ScanCoordinator(
         val started = SystemClock.elapsedRealtime()
         for (folder in folders) {
             val t0 = SystemClock.elapsedRealtime()
-            val current = scanner.stamp(folder.treeUri)
+            val current = scanner.quickStamp(folder.treeUri) // one-row query, no children listing
             val same = ScanPolicy.unchanged(savedStamp(folder.treeUri.toString()), current)
             log(
                 "quick check ${folder.label}: ${if (same) "unchanged" else "changed"}, " +
-                    "children=${current?.childCount ?: -1}, ${SystemClock.elapsedRealtime() - t0} ms"
+                    "folderTime=${if (current != null) "known" else "unknown"}, ${SystemClock.elapsedRealtime() - t0} ms"
             )
             if (!same) return false
         }
         val ms = SystemClock.elapsedRealtime() - started
-        finish("Up to date (quick check, $ms ms)", success = true, changed = false)
+        finish("Up to date (quick check, $ms ms)", success = true, changed = false, durationMs = ms)
         return true
     }
 
@@ -188,7 +191,7 @@ class ScanCoordinator(
             if (problems.isNotEmpty()) append(" - ").append(problems.joinToString("; "))
         }
         log("full scan done: $seenTotal files, $writtenTotal rows written, $ms ms total")
-        finish(summary, success = allComplete, changed = changed)
+        finish(summary, success = allComplete, changed = changed, durationMs = ms)
         detectAnimationInBackground()
     }
 
@@ -259,10 +262,10 @@ class ScanCoordinator(
         return total
     }
 
-    private suspend fun finish(result: String, success: Boolean, changed: Boolean) {
+    private suspend fun finish(result: String, success: Boolean, changed: Boolean, durationMs: Long = -1L) {
         val now = System.currentTimeMillis()
         val editor = prefs.edit().putString(KEY_LAST_RESULT, result)
-        if (success) editor.putLong(KEY_LAST_SUCCESS, now)
+        if (success) editor.putLong(KEY_LAST_SUCCESS, now).putLong(KEY_LAST_DURATION, durationMs)
         editor.apply()
         val count = dao.activeCount()
         _state.update {
@@ -271,6 +274,7 @@ class ScanCoordinator(
                 stickerCount = count,
                 lastResult = result,
                 lastSuccessAt = if (success) now else it.lastSuccessAt,
+                lastDurationMs = if (success) durationMs else it.lastDurationMs,
                 generation = if (changed) it.generation + 1 else it.generation,
             )
         }
@@ -289,5 +293,6 @@ class ScanCoordinator(
         private const val KEY_LAST_SUCCESS = "last_success_at"
         private const val KEY_LAST_RESULT = "last_result"
         private const val KEY_LAST_FULL = "last_full_at"
+        private const val KEY_LAST_DURATION = "last_duration_ms"
     }
 }

@@ -153,6 +153,11 @@ class StickerKeyboardService : InputMethodService() {
         refresh.visibility = if (s.running) View.INVISIBLE else View.VISIBLE
         syncText.text = when {
             s.running -> getString(R.string.kb_syncing)
+            s.lastSuccessAt > 0 && s.lastDurationMs >= 0 -> getString(
+                R.string.kb_synced_in,
+                String.format(java.util.Locale.US, "%.1f s", s.lastDurationMs / 1000.0),
+                DateUtils.getRelativeTimeSpanString(s.lastSuccessAt, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS),
+            )
             s.lastSuccessAt > 0 -> getString(
                 R.string.kb_synced,
                 DateUtils.getRelativeTimeSpanString(s.lastSuccessAt, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS),

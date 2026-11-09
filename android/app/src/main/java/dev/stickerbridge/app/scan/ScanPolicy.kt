@@ -29,7 +29,7 @@ enum class ScanPlan {
  *
  * - ↻ and connecting a folder always do a FULL scan.
  * - Keyboard-open / onboarding: SKIP if the last complete scan (full or quick) is < 5 min old;
- *   otherwise a QUICK_CHECK, unless there is no saved stamp for a folder or the last full
+ *   otherwise a QUICK_CHECK of the folder's own last-modified time, unless there is no saved stamp for a folder or the last full
  *   listing is older than 24 h (then FULL).
  * - A quick check counts as "up to date" only if every folder's stamp equals the saved one.
  *   It cannot see a file whose own time changed without being added/removed (WhatsApp
@@ -53,7 +53,15 @@ object ScanPolicy {
         return ScanPlan.QUICK_CHECK
     }
 
-    /** True if the folder looks unchanged since the last full scan. Unknown values never match. */
-    fun unchanged(saved: FolderStamp?, current: FolderStamp?): Boolean =
-        saved != null && current != null && current.lastModified > 0 && saved == current
+    /**
+     * True if the folder looks unchanged since the last full scan. Unknown values never match.
+     * Child counts are compared only when both are known (>= 0); the keyboard-open check
+     * does not query them (it would cost as much as a listing).
+     */
+    fun unchanged(saved: FolderStamp?, current: FolderStamp?): Boolean {
+        if (saved == null || current == null || current.lastModified <= 0) return false
+        if (saved.lastModified != current.lastModified) return false
+        if (saved.childCount >= 0 && current.childCount >= 0 && saved.childCount != current.childCount) return false
+        return true
+    }
 }

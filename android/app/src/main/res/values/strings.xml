@@ -34,6 +34,7 @@
     <string name="kb_refresh">↻</string>
     <string name="kb_refresh_desc">Refresh stickers</string>
     <string name="kb_synced">Synced %1$s</string>
+    <string name="kb_synced_in">Synced in %1$s · %2$s</string>
     <string name="kb_never_synced">Not synced yet</string>
     <string name="kb_syncing">Syncing…</string>
     <string name="kb_field_no_stickers">This field doesn\'t accept stickers</string>

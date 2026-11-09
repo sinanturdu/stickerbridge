@@ -58,6 +58,15 @@ class ScanPolicyTest {
     }
 
     @Test
+    fun keyboardOpenCheckComparesFolderTimeOnly() {
+        // The fast check does not count children (-1); only the folder's own time decides.
+        val saved = FolderStamp(lastModified = 123L, childCount = 11_900)
+        assertTrue(ScanPolicy.unchanged(saved, FolderStamp(123L, -1)))
+        assertFalse(ScanPolicy.unchanged(saved, FolderStamp(124L, -1)))
+        assertFalse(ScanPolicy.unchanged(saved, FolderStamp(0L, -1)))
+    }
+
+    @Test
     fun stampRoundTripsThroughPreferencesFormat() {
         val s = FolderStamp(1_731_000_000_123L, 11_904)
         assertEquals(s, FolderStamp.decode(s.encode()))
