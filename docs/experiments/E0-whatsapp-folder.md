@@ -8,9 +8,9 @@ The folder contains stickers that appeared in chats. Adding a favorite without s
 - `adb` installed on the computer (Android SDK Platform-Tools)
 
 ## Steps (PowerShell)
-1. List the folder:
-   `adb shell ls -la --full-time "/sdcard/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Stickers"`
-2. Count the files and compare with the number of favorites and installed packs in WhatsApp.
+1. Count the files in the folder (single quotes keep PowerShell from touching the escaped space):
+   `adb shell 'ls /sdcard/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp\ Stickers | wc -l'`
+2. Compare the count with the number of favorites and installed packs in WhatsApp.
 3. Favorite a sticker you have **never sent**, then list the folder again. Does a new file appear?
 4. Unfavorite a sticker, then list again. Does a file disappear?
 5. Check whether a `.nomedia` file exists.

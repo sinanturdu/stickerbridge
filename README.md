@@ -40,7 +40,7 @@ We publish what is verified and what is not. Details and sources: [docs/RESEARCH
 | Topic | Reality |
 |---|---|
 | Official WhatsApp API to read your sticker collection | **Does not exist.** |
-| Favorites & their order | Stored privately inside WhatsApp. Only reachable through an *unofficial* linked-device method (optional, off by default, account-risk warning). |
+| Favorites & their order | Stored privately inside WhatsApp. Possible via an optional, *experimental* linked-device sync (tested in E5: full list with real order, changes in ~1 s). It is unofficial and carries an **account-ban risk**, so it will be off by default with a clear warning. |
 | Android sticker folder | Readable with your permission (via the folder picker). Tested on one device: it contains stickers seen in chats, not your favorites — favoriting changes no file. Order shown is an *observed* "recently seen/used" order (file time), not WhatsApp's own. *(E0)* |
 | iOS | No app can read WhatsApp's data on iOS. iOS support = keyboard + manual import + copy/paste. |
 | Instagram's built-in sticker tray | Cannot be extended by third parties. StickerBridge is a **custom keyboard**, not a tray add-on. |
@@ -85,7 +85,7 @@ stickerbridge/
 | E2 | How does each format look to the recipient (transparency, animation)? | Planned |
 | E3 | Does Instagram "Share to Stories" keep a transparent sticker? | Planned |
 | E4 | iOS copy/paste behavior in DM and Stories | Planned |
-| E5 | Can favorites be read via linked-device sync (test account only)? | Planned |
+| E5 | Can favorites be read via linked-device sync (test account only)? | Done — favorites and their real order readable, changes seen in ~1 s; unofficial, account risk |
 | E6 | What does WhatsApp Web store about favorite stickers? | Planned |
 
 Full plans: [docs/experiments/](docs/experiments/)
