@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">E1 IME Probe</string>
+    <string name="ime_name">IME Probe</string>
+    <string name="btn_open_settings">Open keyboard settings</string>
+    <string name="btn_share_log">Share log</string>
+    <string name="btn_clear_log">Clear log</string>
+    <string name="log_empty">(log is empty — enable \"IME Probe\", focus a text field and switch to it)</string>
+</resources>
