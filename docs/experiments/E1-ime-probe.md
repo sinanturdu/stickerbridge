@@ -32,6 +32,15 @@ Device: Samsung (Android) · Android: not recorded · Instagram version: Instagr
 
 Single device, single Instagram version. `packageName` and `inputType` values were not recorded; "true" means `commitContent` returned `true`.
 
+Retrospective provenance review: `45a1b66` recorded the success report; the insertion source
+last changed in `298c91b`, and the bundled GIF was introduced in `6ef3d4b`. That repository GIF
+is byte-identical to E9's fixture. The exact successful installed APK/source commit, its hash,
+the on-device cached GIF hash, exact Instagram/Android versions and independent recipient
+confirmation were not recorded. The original code reused any nonempty cached GIF, so repository
+identity alone does not prove the bytes used on that device. Preserve this as a historical
+reported result, not a reproducible current support guarantee. See the
+[E9 provenance/instrumentation review](E9-gif-provider-access.md#e1-provenance-and-e9-instrumentation-review).
+
 ## Findings
 *Verified with a working prototype* (this E1 probe, one Samsung device, one Instagram Android version, 2026-11-09).
 

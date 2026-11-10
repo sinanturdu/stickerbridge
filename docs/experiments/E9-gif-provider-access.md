@@ -1,7 +1,51 @@
 # E9 — Synthetic GIF provider access from the E1 IME
 
-Status: prepared for architect review before owner testing. No E9 device result yet.
+Status: evidence record finalized for architect review: owner-confirmed Story control and DM rejection.
+Private inline GIF delivery in DMs remains unresolved. No re-encoding or delivery variant is justified.
 E8 remains paused; MP4 and static PNG do not satisfy the owner's inline-animation requirement.
+
+## Current owner evidence
+
+The following is a sanitized summary supplied by the owner, not a new agent device test.
+No screenshot, personal media or raw device log is embedded or stored with this review.
+
+| Evidence | What is confirmed / missing |
+|---|---|
+| Screenshot context reported by owner | Attempt 15 is Instagram DM; package `com.instagram.android`, fieldId `2131441646`. |
+| DM UI | Instagram displays its prompt to use the sticker icon to find/send GIFs; the owner reports rejection. |
+| Attempts 1-15, shared capture markers | FILE_READY size 52,937; WATCH_STARTED; COMMIT_RESULT value 1. |
+| Prior DM capture, attempt 15 | No GET_TYPE, QUERY, OPEN or FS_ACCESS events captured. This is absence in capture, not proven absence of access or attempts. |
+| Attempts 1-14 contexts | Unclassified. Do not assign them to DM or Story. |
+| Attempts 17-19 | Preparation/commit markers only. Contexts and outcomes are unclassified; do not assign them to DM or Story or infer success/rejection. |
+| Story control, attempt 20 | FILE_READY size 52,937; COMMIT_RESULT value 1; OPEN_CALL, OPEN_RETURN and FS_ACCESS captured. Owner confirms the Story workflow works. |
+| Story UI, attempt 20 | Owner-supplied screenshot shows the synthetic numbered test GIF in the Story editor. The screenshot is not embedded; no published Story/recipient outcome is claimed. |
+| Runtime provenance | Exact installed APK hash/manifest, current Android/Instagram versions and completeness of the capture are not established by these markers. |
+
+COMMIT_RESULT=1 acknowledges the insertion request, not delivery. FILE_READY's length is not
+a content hash. WATCH_STARTED shows that startWatching returned, not that a working watch or
+any data read was demonstrated. The DM screenshot confirms the target field for attempt 15;
+it does not independently establish provider registration or the actual outgoing URI. The
+separate attempt-20 OPEN/FS_ACCESS evidence supplies a positive access control for Story.
+
+### Controlled comparison and conclusion
+
+| Confirmed workflow | API acknowledgement | Provider/read-access capture | Owner-observed outcome |
+|---|---|---|---|
+| Instagram DM, attempt 15 | COMMIT_RESULT=1 | No captured provider/read events | Rejection toast; not delivered as the required inline GIF. |
+| Instagram Story, attempt 20 | COMMIT_RESULT=1 | OPEN_CALL, OPEN_RETURN, FS_ACCESS | Owner confirms workflow works; numbered synthetic GIF visible in Story editor. |
+
+The harness can observe file opening and filesystem read-access notifications in the Story
+workflow. The confirmed DM capture differs. This is positive evidence of observability for
+those Story events, not proof of complete coverage of all access paths or of the DM window.
+It does not establish reader identity, complete reads, the rejection cause or an allowlist.
+Provider telemetry does not itself prove rendering or message delivery; the Story UI observation
+and owner confirmation are separate evidence. Missing DM callbacks still do not prove that
+Instagram never accessed or attempted to access the content.
+
+No GIF re-encoding, URI-policy change, delivery variant or further experiment is justified by
+this evidence record. E8 stays paused. Arbitrary private GIFs playing inline in Instagram DMs
+remain unresolved. Historical E1 success is preserved as a reported observation with incomplete
+provenance, not promoted into a current support guarantee.
 
 ## Question and evidence boundary
 
@@ -144,7 +188,10 @@ Enable/select **IME Probe** with the system keyboard picker in each target field
 launcher can open keyboard settings. Installing this separate application does not replace the
 StickerBridge product app. Do not export/share old probe logs, screenshots or app-private files.
 
-## One controlled experiment: exactly one DM and one Story insertion
+## Recorded E9 protocol (reference only; no new run requested)
+
+The confirmed comparison is now recorded above. The original two-workflow protocol and
+commands below are retained for traceability, not as a request to repeat or extend testing.
 
 Start the following live capture **before** either insertion; keep it running through both.
 Raw format omits process/thread identifiers, and the whitelist emits only E9 codes and numbers:
@@ -175,7 +222,7 @@ after capture starts. Do not clear system logs or app data to reset the sequence
 
 Stop after these two insertions. If preparation/connection/commit fails, stop and report the
 fixed codes; do not silently substitute another asset/settings or start additional variants.
-No owner test or device automation is run by this package before architect review.
+The agent did not run device automation. Owner-supplied results are recorded separately above.
 
 ## Interpretation matrix
 
@@ -216,8 +263,103 @@ separate experiment requiring architect review, not an automatic E9 follow-up.
   permission for non-exported dynamic receivers. The corrected check verifies its library
   origin, unchanged debug/release set and absence of Android system permissions/INTERNET.
 - Wrapper remains 8.11.1, AGP 8.7.3 and Kotlin 2.0.21; no dependency or permission additions.
-- No device test, provider callback, FS_ACCESS result, Instagram rendering or delivery result
-  was observed by the agent. Runtime callbacks and watch behavior await owner testing.
+- The agent did not perform a device test. The owner subsequently supplied the confirmed
+  DM attempt 15 and positive Story attempt 20 recorded above; these are owner evidence, not
+  agent-executed tests. No code rebuild or unchanged unit suite was repeated to finalize the record.
 
 Full diff and the built APK path are returned separately for architect review. No APK, logs,
 local.properties, generated build outputs or personal data is committed.
+
+## E1 provenance and E9 instrumentation review
+
+This review changes documentation only. Reviewed E9 source: `62d5fce`; E8 `e1842e2` remains
+its ancestor and is unchanged/paused. The owner's current DM evidence does not retroactively
+identify the historical successful build or establish a cause of rejection.
+
+### Historical fixture and implementation
+
+- `6ef3d4b` introduced `experiments/e1-ime-probe/app/src/main/res/raw/test_gif.gif` and its
+  synthetic generator. Git blob: `b29df9084ce61cd9f69261749e7d7564ea7d0f92`.
+- `298c91b` introduced `ProbeImeService.commitAsset` / `ensureAssetFile`. The GIF button selects
+  `R.raw.test_gif`, with the fixed synthetic basename and `image/gif`. The source has no
+  intervening insertion changes at `45a1b66`, which recorded the November 9 E1 success.
+- Fixture bytes at `6ef3d4b`, `298c91b`, `45a1b66`, `62d5fce` and in the existing local E9 APK
+  all match the SHA-256 above: 52,937 bytes, 512x512, four frames at 400 ms each.
+- This identifies the repository fixture/source associated with the report, **not the exact
+  successful device artifact**. No historical APK hash, installed source commit or cached-output
+  hash was recorded. Exact Instagram/Android versions and independent recipient confirmation
+  are missing. E1's source reused any existing nonempty cache file without comparing its hash.
+- E1 and E9 both retain versionCode 1 / versionName `0.1-e1`; that label alone cannot identify
+  which implementation was installed. No archived successful APK was established by this review.
+
+### Delivery comparison: same repository bytes, changed URI/preparation
+
+These are source-derived structures for the synthetic fixture, not captured device URI strings.
+
+| Aspect | Historical E1 (`298c91b`, unchanged at results commit) | E9 (`62d5fce`) |
+|---|---|---|
+| Payload | Bundled synthetic GIF, copied only when cache file is absent/empty | Same bundled bytes copied afresh for every attempt |
+| Cache-relative structure | `stickers/test_gif.gif` | `stickers/e9_<attempt>/test_gif.gif` |
+| URI path under the same probe authority | `/stickers/test_gif.gif`, reused | `/stickers/e9_<attempt>/test_gif.gif`, fresh per attempt |
+| Provider | androidx FileProvider | Debug subclass delegates to the same FileProvider implementation |
+| Authority / provider root | Probe applicationId + `.fileprovider`; cache-path name `stickers`, path `stickers/` | Unchanged |
+| MIME / description label | `image/gif` / `GIF` | Unchanged |
+| Flags / linkUri / opts | INPUT_CONTENT_GRANT_READ_URI_PERMISSION / null / null | Unchanged |
+| Input connection | Current InputConnection and EditorInfo, passed to InputConnectionCompat.commitContent | Same API and arguments, after preparation |
+| Compatibility path | androidx.core 1.15.0; API 25+ platform commitContent path | Same declared library/version and path; both projects require API 26+ |
+| Advertised MIME check | Used for reporting, not a gate before commit | No new gate |
+| Lifetime | Cache file retained; no explicit grant revocation or post-send deletion | Same lifetime policy; previously issued attempt files are not overwritten |
+| Work before commit | Copy on cache miss; legacy field/commit logging | Persistent attempt allocation, fresh copy, passive ACCESS watch; legacy debug logging suppressed |
+| Build settings | min/target 26/35, core 1.15.0, appcompat 1.7.0, AGP 8.7.3, Kotlin 2.0.21 | Same declarations; debug provider selection added |
+
+The InputConnectionCompat 1.15.0 source directly invokes platform commitContent on all API
+levels supported here; no alternate pre-25 private-command path is selected by E9. Equal
+payload hashes therefore do not make this an identical delivery replay: URI reuse/depth,
+provider subclass and pre-commit work changed. No supplied observation implicates any one
+of them. Unchanged dependency declarations are not a recovered historical resolved APK.
+
+### Can the current instrumentation observe provider access?
+
+| Audit item | Result and limit |
+|---|---|
+| Local merged debug manifest | Selects GifDiagnosticFileProvider, matching probe authority; debuggable=true, exported=false, grantUriPermissions=true. |
+| Existing local E9 APK | Binary manifest inspected with installed aapt2; also selects that provider. Its class is present in DEX. APK SHA-256: `d3e0cf8de3ec117ceb077cd8a45a2cc3092a5705e891ee813dc49573ef33eaec`. This is a local artifact, not a verification of the installed device artifact. |
+| URI classification | FileProvider's root/tag construction produces three decoded segments: `stickers`, canonical `e9_<positive integer>`, fixed GIF basename. The sender-generated source path matches all classifier predicates for attempts 1-15. No static mismatch found; the agent executed no runtime URI round-trip. Owner attempt 20 subsequently supplies positive Story access evidence. Other shapes are deliberately silent. |
+| Overrides | javap confirms compiled getType(Uri), five-argument query and openFile(Uri,String) overrides. Logging occurs before delegation for a matching route with attached debug context. |
+| Normal overload dispatch | Framework Bundle/cancellation queries delegate to the five-argument query. Cancellation/asset-file opens delegate to openFile; normal typed opens use getType/openAssetFile. These paths should reach the overrides once dispatched; transport permission checks may reject earlier. This is source/API reasoning, not an OEM runtime test. |
+| **Anonymous MIME blind spot** | The actual cached core-1.15.0 FileProvider source implements getTypeAnonymous(Uri) returning application/octet-stream. E9 does not override it. On applicable Android versions, anonymous MIME lookup can therefore produce no GET_TYPE log. That inherited behavior is present in E1's same dependency too; no evidence shows it was used in either device result. |
+| Other entry points | getStreamTypes/canonicalization and transport-level rejection are not separate E9 events. Do not read the event list as coverage of every provider interaction. |
+| Log whitelist | The documented tag/priority/raw-format command and regex include all 19 emitted codes. Generated-schema checks accepted every code at attempt 15 with values -1, 0, 1 and 52,937. They did not use device logs. An owner-side different command, missing capture window or dropped lines is not excluded. |
+| FS_ACCESS | Separate passive notification; WATCH_STARTED is not a health check. No notification cannot exclude reads, especially mmap, event loss or process/watch lifetime limits. |
+
+Provider source checked: the existing cached AndroidX core 1.15.0 sources.jar entries for
+FileProvider and InputConnectionCompat. Public API/source references for the dispatch audit:
+
+- [FileProvider.getTypeAnonymous](https://developer.android.com/reference/androidx/core/content/FileProvider#getTypeAnonymous(android.net.Uri))
+- [ContentProvider.getTypeAnonymous](https://developer.android.com/reference/android/content/ContentProvider#getTypeAnonymous(android.net.Uri))
+- [Framework ContentProvider source](https://android.googlesource.com/platform/frameworks/base/+/HEAD/core/java/android/content/ContentProvider.java)
+
+The initial source review established viable paths to observe normal provider calls. The
+owner's subsequent attempt 20 now provides a **positive Story control for OPEN_CALL,
+OPEN_RETURN and FS_ACCESS**. It does not validate every metadata path, eliminate the anonymous
+MIME blind spot, or establish complete capture of the DM attempt. Missing DM callbacks do not
+prove that Instagram never accessed or attempted to access the content. Caller identity, full
+reads, rendering, delivery and an allowlist remain unproved by provider telemetry; the owner
+confirmation and screenshot of the Story editor are separate UI evidence.
+
+### Review disposition after the Story control
+
+The previously missing Story control is supplied by attempt 20. The observed Story access and
+the confirmed DM rejection/capture differ; the cause remains unknown. Attempts 1-14 and 17-19
+remain unclassified. No context or outcome is inferred for them, and no new experiment is started.
+
+The fixed-versus-fresh URI difference is concrete but has no causal evidence yet; it does not
+justify changing URI policy now. The anonymous MIME gap is an instrumentation-coverage finding,
+not evidence to alter a MIME return value. The evidence does not justify re-encoding the GIF
+or changing delivery. No encoding, delivery, MIME, grant, label, URL, clipboard or product change
+is implemented. E8 stays paused; private inline GIF delivery in DMs remains unresolved.
+
+No build or unit suite was repeated: implementation is unchanged. Review checks were Git/blob
+hash comparisons, local APK/manifest inspection, compiled signatures, primary-source dispatch
+inspection and the generated-schema log-filter check. Finalization adds only the owner's
+sanitized evidence summary; no screenshots, media or raw device logs are included.
