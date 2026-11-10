@@ -1,8 +1,58 @@
 # E9 — Synthetic GIF provider access from the E1 IME
 
-Status: evidence record finalized for architect review: owner-confirmed Story control and DM rejection.
-Private inline GIF delivery in DMs remains unresolved. No re-encoding or delivery variant is justified.
+Status: evidence and bounded source-feasibility research complete. **Instagram DM GIF delivery is
+blocked pending new concrete evidence; implementation is paused.** No supported route for arbitrary
+private GIFs playing inline in DMs was established. This is not a claim of universal impossibility.
+Story animation remains an owner-verified working feature. No new experiment is authorized.
 E8 remains paused; MP4 and static PNG do not satisfy the owner's inline-animation requirement.
+
+## Completed source-feasibility research
+
+Recorded 2026-11-10. Receiver source links below are pinned to reviewed revisions.
+
+Question: does public evidence explain Samsung Keyboard's successful catalog-GIF handoff to
+Instagram DMs, and document a route usable by an independent keyboard for arbitrary private GIFs
+without an additional server or public upload? The bounded review did not establish such a route.
+
+| Claim | Primary source and relevant code/API | What it establishes | Limits | Implication for StickerBridge |
+|---|---|---|---|---|
+| Standard Android handoff can use local content. | [Android image-keyboard documentation](https://developer.android.com/develop/ui/views/touch-and-input/image-keyboard): InputContentInfo, commitContent, content URI and read grant. | On-device IME-to-receiver transfer need not use a catalog service or additional server. | The receiver must cooperate; API acknowledgement is not message delivery. | The standard mechanism is available, but does not establish Instagram DM acceptance. |
+| Samsung has documented catalog integration. | [Samsung's GIPHY partnership announcement](https://news.samsung.com/in/samsung-breathes-new-life-into-emojis-with-the-galaxy-s9-s9). | Samsung publicly described GIPHY-backed GIF selection. | Historical feature announcement, not a Samsung-to-Instagram transport contract; the owner's exact item/provider was unrecorded. | Catalog success does not explain the handoff or establish an allowlist. |
+| Open-source receivers implement ordinary URI handling. | [Telegram ChatActivityEnterView](https://github.com/DrKLO/Telegram/blob/7be672ead283d022812d75c729d3a04dd4c2a2c6/TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterView.java#L5399-L5453): requestPermission and prepareSendingDocument(contentUri). [Google receiver sample](https://github.com/googlearchive/android-CommitContentSampleApp/blob/85f3ffb277b7c9b5a66359825194c132eb087f1c/app/src/main/java/com/example/android/commitcontent/app/MainActivity.java#L142-L170): permission request and URI display. | Concrete standard-API receiver implementations; no catalog-ID requirement in these reviewed GIF branches. | Neither is Instagram's receiver or Samsung's sender. Code in another receiving app does not establish Instagram behavior. | Supports the generic local handoff contract, not an Instagram workaround. |
+| Catalog identifiers and credentials exist. | [GIPHY schema](https://developers.giphy.com/docs/api/schema/) and [API integration](https://developers.giphy.com/docs/api/): GIF id, rendition URLs, API key. [Tenor endpoint documentation](https://developers.google.com/tenor/guides/endpoints): IDs, API key and client_key. | Documented provider-service objects and integration requirements. | No evidence establishes these as required Samsung IME metadata or Instagram acceptance fields. | Does not justify guessing metadata or presenting a private file as a catalog item. |
+| Provider-private content is not a local-only sharing contract. | [GIPHY upload documentation](https://support.giphy.com/hc/en-us/articles/360019977552-How-to-Upload). | Upload uses GIPHY's service; content marked Private cannot be shared. | No documented private local-GIF injection into Samsung Keyboard or Instagram. | Does not satisfy the local-only requirement; no upload approach is proposed. |
+| Samsung's custom-sticker instructions do not establish arbitrary animated-GIF import. | [Samsung custom-sticker documentation](https://www.samsung.com/us/support/answer/ANS10003677/): Gallery-photo stickers and generated Avatar/AR Emoji stickers. | Documents those particular creation/sharing workflows. | Does not document animation-preserving arbitrary GIF import or an integration API for independent keyboards. | Samsung Keyboard cannot be assumed to provide a private-GIF bridge. |
+
+The reviewed [Samsung mobile developer material](https://developer.samsung.com/mobile) did not
+provide a documented additional Samsung-to-Instagram GIF mechanism available to independent
+keyboards. This is a bounded search finding, not proof that no such mechanism can exist. Receiver
+source above is implementation evidence only for those receivers. Issue reports were not treated
+as implementation proof; neither reports nor Samsung's observed success establish an allowlist.
+
+**Disposition C: no supported route was established; pause DM GIF implementation.** The public
+sources do not close the gap between catalog success and arbitrary private inline GIF delivery.
+Local IME-to-app transfer is supported; a working local-source Instagram DM route is not established.
+MP4, static PNG and public catalog uploads do not satisfy the owner's requirement. No further
+encoding/delivery variant, SDK integration or device experiment follows from this research.
+
+## Reopening criterion
+
+Reopen DM GIF work only after architect review of at least one new concrete piece of evidence
+supporting arbitrary private GIFs playing inline in Instagram DMs without an additional server
+or public upload:
+
+1. A documented integration that explicitly covers the relevant private local-content handoff
+   from an independent keyboard to Instagram DMs.
+2. A relevant source implementation demonstrating the applicable mechanism. Another receiving
+   app's generic commitContent implementation alone is insufficient evidence about Instagram.
+3. A reproducible private-GIF success with known provenance: source commit/build and APK hash,
+   synthetic fixture hash, Android/Instagram versions, exact workflow/context and sender/recipient
+   inline-playback observations. Historical E1's incomplete provenance does not yet meet this criterion.
+
+A speculative metadata key, Samsung catalog success, commitContent=true, an activity launch or
+provider access alone does not meet this threshold. These criteria authorize review of new
+evidence, not an automatic experiment or implementation. Until then, DM GIF delivery remains
+blocked, E8 stays paused, and owner-verified Story animation remains a working feature.
 
 ## Current owner evidence
 

@@ -1,9 +1,12 @@
 # E8 — Animated stickers to Instagram DMs as a short video
 
-Status: **diagnosis in progress**. No experiment verdict or retain/remove decision.
+Status: **paused**. MP4 and static PNG do not satisfy the owner's requirement for arbitrary private
+GIFs playing inline in Instagram DMs. Existing E8 work is preserved; no further implementation or
+test is requested. DM GIF delivery is [blocked pending new concrete evidence](E9-gif-provider-access.md#reopening-criterion).
+No experiment verdict or retain/remove decision is recorded here.
 
 ## Background
-Instagram DMs silently drop GIFs inserted by third-party keyboards; Stories animate them (E7). So in DMs StickerBridge currently sends animated stickers as a still image.
+Tested StickerBridge GIF insertions were rejected in Instagram DMs; Story animation is owner-verified (E7/E9). StickerBridge's existing DM fallback sends animated stickers as a still image, which does not meet the owner's requirement.
 
 ## Hypothesis
 Instagram's DM flow accepts a short MP4 shared through Android's share sheet (`ACTION_SEND`, `video/mp4`). An animated sticker converted to a looping MP4 (on white, because video has no transparency) reaches the chat and plays there, which is closer to "animated sticker in DM" than a still image.

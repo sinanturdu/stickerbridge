@@ -1,5 +1,9 @@
 # E7 — Can a third-party keyboard send animated GIFs into Instagram DMs?
 
+Status: **DM GIF delivery blocked pending new concrete evidence; implementation paused.**
+Story animation remains owner-verified. E8 is paused; MP4/static PNG do not satisfy the owner's
+private inline-GIF requirement. See [completed source research and reopening criterion](E9-gif-provider-access.md#completed-source-feasibility-research).
+
 ## Question
 StickerBridge converts animated WhatsApp stickers (animated WEBP) to GIF because Instagram freezes animated WEBP (E1). Do these GIFs reach the chat when sent from our keyboard into an Instagram DM, and into a Story?
 
@@ -50,6 +54,7 @@ Other observations:
 - Static images from our keyboard are sent to DMs normally.
 - [E9](E9-gif-provider-access.md#controlled-comparison-and-conclusion) adds a controlled access comparison: confirmed DM attempt 15 was rejected with no captured provider/read events; confirmed Story attempt 20 has OPEN_CALL, OPEN_RETURN and FS_ACCESS, and the owner confirms the Story workflow works with the numbered synthetic GIF visible in the editor. The harness can observe opening and read-access notifications in Story; the DM capture differs. This establishes neither reader identity, complete reads, rejection cause nor an allowlist, and missing DM events do not prove no access was attempted.
 - Attempts 1-14 and 17-19 are unclassified; no contexts or outcomes are inferred. Historical E1 success remains a reported observation with incomplete provenance. Private inline GIF delivery in DMs is unresolved; no GIF re-encoding or delivery variant is justified by the E9 evidence. E8 stays paused.
+- The completed primary-source review established no supported route for arbitrary private inline DM GIFs. This is not universal impossibility; work remains blocked until the [reopening criterion](E9-gif-provider-access.md#reopening-criterion) is met. No additional variant or experiment is planned.
 
 ## Hypothesis (unverified)
 An **allowlist** or other keyboard/provider-specific acceptance rule remains a hypothesis.
