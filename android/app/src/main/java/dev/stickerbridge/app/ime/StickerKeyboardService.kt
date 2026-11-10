@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView
 import dev.stickerbridge.app.AppSettings
 import dev.stickerbridge.app.DebugLog
 import dev.stickerbridge.app.convert.GifProfiles
+import dev.stickerbridge.app.convert.VideoDiagnostics
 import dev.stickerbridge.app.scan.SafUris
 import dev.stickerbridge.app.MainActivity
 import dev.stickerbridge.app.R
@@ -31,6 +32,7 @@ import dev.stickerbridge.app.scan.ScanState
 import dev.stickerbridge.app.scan.ScanTrigger
 import dev.stickerbridge.app.scan.StickerFolders
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -444,12 +446,19 @@ class StickerKeyboardService : InputMethodService() {
         insertJob?.cancel()
         insertJob = scope.launch {
             val ctx = this@StickerKeyboardService
+            val trace = VideoDiagnostics { DebugLog.d(ctx, DebugLog.VIDEO, it) }
+            trace.step(VideoDiagnostics.Stage.SOURCE)
             val bytes = try {
                 withContext(Dispatchers.IO) { StickerInserter.readSource(ctx, StickerAdapter.documentUri(item)) }
+            } catch (e: CancellationException) {
+                trace.step(VideoDiagnostics.Stage.CANCELLED)
+                throw e
             } catch (e: FileNotFoundException) {
+                trace.failure(e)
                 onStickerMissing(item)
                 return@launch
             } catch (e: Exception) {
+                trace.failure(e)
                 toast(R.string.kb_insert_error)
                 return@launch
             }
@@ -459,29 +468,21 @@ class StickerKeyboardService : InputMethodService() {
                 toast(R.string.kb_preparing_video)
             }
             val outcome = try {
-                withContext(Dispatchers.Default) { VideoSender.prepare(ctx, item, bytes) }
+                withContext(Dispatchers.Default) { VideoSender.prepare(ctx, item, bytes, trace) }
+            } catch (e: CancellationException) {
+                trace.step(VideoDiagnostics.Stage.CANCELLED)
+                throw e
             } finally {
                 slowHint.cancel()
                 adapter.setBusy(item.id, false)
             }
             val file = outcome.file
             if (file == null) {
-                DebugLog.d(ctx, DebugLog.VIDEO, "conversion failed (${outcome.error}), source=${bytes.size / 1024} KB")
                 toast(R.string.kb_video_failed)
                 return@launch
             }
-            val shareResult = VideoSender.share(ctx, file)
-            val r = outcome.result
-            DebugLog.d(
-                ctx, DebugLog.VIDEO,
-                if (r == null) {
-                    "video from cache: ${file.length() / 1024} KB, share=$shareResult"
-                } else {
-                    "video converted: source frames=${r.sourceFrames}, video frames=${r.videoFrames}, loops=${r.loops}, " +
-                        "${r.side}x${r.side}px, duration=${r.durationMs} ms, size=${r.bytes / 1024} KB, ${r.millis} ms, share=$shareResult"
-                },
-            )
-            if (shareResult.startsWith("failed")) toast(R.string.kb_video_failed)
+            val shareResult = VideoSender.share(ctx, file, trace)
+            if (shareResult == "FAILED") toast(R.string.kb_video_failed)
             else app.appScope.launch(Dispatchers.IO) { app.library.recordUse(item.id) }
         }
     }

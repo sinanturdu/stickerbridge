@@ -62,7 +62,7 @@ class VideoPlanningTest {
     fun frameRateNeverExceeds30Fps() {
         val plan = VideoPlanning.plan(IntArray(100) { 10 })            // 100 fps source, 1 s
         val deltas = plan.frames.map { it.ptsUs }.zipWithNext { a, b -> b - a }
-        assertTrue(deltas.all { it >= 33_333 || it == deltas.last() })
+        assertTrue(deltas.all { it >= 33_333 })
         assertTrue(plan.frames.size <= 3 * 30 + 2)                     // ~3 s at <= 30 fps
     }
 
@@ -76,5 +76,21 @@ class VideoPlanningTest {
     @Test
     fun emptyAnimationGivesEmptyPlan() {
         assertTrue(VideoPlanning.plan(IntArray(0)).frames.isEmpty())
+    }
+
+    @Test
+    fun shortFinalSourceFrameDoesNotCreateOneMicrosecondClosingFrame() {
+        val plan = VideoPlanning.plan(intArrayOf(40, 10))
+        val deltas = plan.frames.zipWithNext { a, b -> b.ptsUs - a.ptsUs }
+        assertTrue(deltas.all { it >= 33_333 })
+        assertEquals(3_000_000L, plan.durationUs)
+        assertEquals(2_990_000L, plan.frames.last().ptsUs)
+    }
+
+    @Test
+    fun singleLongFrameUsesEndTimestampWithoutDuplicatingTheFrame() {
+        val plan = VideoPlanning.plan(intArrayOf(3_000))
+        assertEquals(listOf(VideoFrame(0, 0)), plan.frames)
+        assertEquals(3_000_000L, plan.durationUs)
     }
 }

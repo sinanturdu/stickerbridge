@@ -15,8 +15,8 @@ data class VideoPlan(val frames: List<VideoFrame>, val durationUs: Long, val loo
  * - Exact source timing: each frame starts at its source start time; frames that would start
  *   less than 1/[MAX_FPS] s after the previous emitted frame are skipped (the previous one
  *   simply stays on screen longer), so the frame rate never exceeds [MAX_FPS].
- * - presentationTimeUs is strictly increasing. A final copy of the last frame closes the
- *   timeline so the last frame keeps its duration in players that use sample deltas.
+ * - presentationTimeUs is strictly increasing. The muxer receives a separate empty EOS
+ *   sample at durationUs to set the last frame's duration without an extra video frame.
  */
 object VideoPlanning {
     const val MAX_SIDE = 480
@@ -63,10 +63,6 @@ object VideoPlanning {
                 startUs += dur[i] * 1_000
             }
         }
-        // Closing sample: repeat the last frame shortly before the end so it keeps its duration.
-        val last = frames.last()
-        val closing = maxOf(last.ptsUs + 1, totalUs - MIN_FRAME_US)
-        if (closing < totalUs && closing > last.ptsUs) frames += VideoFrame(last.sourceIndex, closing)
         return VideoPlan(frames, totalUs, loops)
     }
 }
