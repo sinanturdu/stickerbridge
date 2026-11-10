@@ -13,9 +13,13 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1-e1"
+        manifestPlaceholders["probeFileProvider"] = "androidx.core.content.FileProvider"
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders["probeFileProvider"] = "dev.stickerbridge.e1.imeprobe.GifDiagnosticFileProvider"
+        }
         release {
             isMinifyEnabled = false
         }

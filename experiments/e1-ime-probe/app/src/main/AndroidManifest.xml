@@ -35,7 +35,7 @@
 
         <!-- Serves the bundled test images to the target app via content:// URIs. -->
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name="${probeFileProvider}"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">

@@ -104,7 +104,7 @@ class ProbeImeService : InputMethodService() {
         resultView?.text = ""
         if (info == null) {
             infoView?.text = "EditorInfo: null"
-            ProbeLog.append(this, "START_INPUT_VIEW editorInfo=null")
+            legacyLog("START_INPUT_VIEW editorInfo=null")
             return
         }
         val mimes = advertisedMimeTypes(info)
@@ -118,14 +118,17 @@ class ProbeImeService : InputMethodService() {
         }
         infoView?.text = summary
         infoView?.scrollTo(0, 0)
-        ProbeLog.append(
-            this,
+        legacyLog(
             "START_INPUT_VIEW restarting=$restarting " +
                 summary.lines().joinToString(" | ") { it.replace(Regex("\\s+:"), ":").trim() },
         )
     }
 
     private fun commitAsset(asset: TestAsset) {
+        if (asset == TestAsset.GIF && GifAccessTrace.enabled(this)) {
+            commitDiagnosticGif()
+            return
+        }
         val editorInfo = currentInputEditorInfo
         val ic = currentInputConnection
         val mimes = if (editorInfo != null) advertisedMimeTypes(editorInfo) else emptyList()
@@ -157,7 +160,38 @@ class ProbeImeService : InputMethodService() {
 
     private fun report(line: String) {
         resultView?.text = line
-        ProbeLog.append(this, line)
+        legacyLog(line)
+    }
+
+    /** E9 logs replace the legacy field/exception log in debug builds. Release E1 is unchanged. */
+    private fun legacyLog(line: String) {
+        if (!GifAccessTrace.enabled(this)) ProbeLog.append(this, line)
+    }
+
+    private fun commitDiagnosticGif() {
+        var attempt = 0L
+        try {
+            attempt = GifAccessTrace.begin(this)
+            val info = currentInputEditorInfo
+            val ic = currentInputConnection
+            if (info == null || ic == null) {
+                GifAccessTrace.record(this, attempt, GifAccessTrace.Event.NO_CONNECTION)
+                resultView?.text = "E9 attempt $attempt: no input connection"
+                return
+            }
+            val file = GifAccessTrace.prepare(this, attempt)
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            val content = InputContentInfoCompat(uri, ClipDescription("GIF", arrayOf("image/gif")), null)
+            GifAccessTrace.record(this, attempt, GifAccessTrace.Event.COMMIT_CALL)
+            val ok = InputConnectionCompat.commitContent(
+                ic, info, content, InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null,
+            )
+            GifAccessTrace.record(this, attempt, GifAccessTrace.Event.COMMIT_RESULT, if (ok) 1 else 0)
+            resultView?.text = "E9 attempt $attempt: commitContent=$ok (check target; byte counts unobserved)"
+        } catch (e: Exception) {
+            GifAccessTrace.record(this, attempt, GifAccessTrace.Event.COMMIT_ERROR)
+            resultView?.text = "E9 attempt $attempt: failed (see fixed event codes)"
+        }
     }
 
     /** Copies the bundled raw resource to cacheDir/stickers/ (served by FileProvider). */

@@ -2,6 +2,19 @@
 
 Throw-away experiment for [docs/experiments/E1-ime-probe.md](../../docs/experiments/E1-ime-probe.md).
 
+## E9 debug provider-access experiment
+
+Current debug builds add [E9 provider diagnostics](../../docs/experiments/E9-gif-provider-access.md)
+to the existing GIF button. Use that document's build/install/log commands and two-attempt
+DM/Story protocol. Each GIF tap gets a fresh URI for the same bundled synthetic bytes, with
+the same MIME, label, linkUri and read grant. Provider opens and passive filesystem ACCESS
+notifications are logged separately; byte counts, complete reads and caller attribution are not observed.
+
+Debug builds suppress legacy E1 field/exception logging and emit only fixed `SB-GifAccess`
+codes and numbers for E9. The existing field display remains; release E1 behavior is unchanged.
+The legacy launcher log/share UI described below is not the E9 capture mechanism and may
+contain older E1 records. Do not share it for E9. No product-app or E8 changes are included.
+
 **Question:** which rich-content MIME types do Instagram input fields (DM composer, story text tool, comment field) accept from a keyboard?
 
 The app installs a keyboard called **IME Probe**. When a text field gets focus it shows and logs the field's `packageName`, `fieldId`, `inputType`, `imeOptions`, `hintText` and `EditorInfoCompat.getContentMimeTypes()`. Four buttons (PNG, WEBP, Animated WEBP, GIF) try to insert a bundled synthetic image with `InputConnectionCompat.commitContent` (FileProvider URI + `INPUT_CONTENT_GRANT_READ_URI_PERMISSION`). The result (`true` / `false`) and whether the MIME type was advertised by the field are shown and logged. Buttons are never hidden, even for non-advertised types.
