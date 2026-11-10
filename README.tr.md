@@ -6,7 +6,9 @@ StickerBridge, açık kaynaklı bir sticker klavyesidir. Önce Android için, so
 Klavyede rengini ve simgesini seçebileceğin bir sticker tuşu var. Instagram'da bu tuşa bastığında WhatsApp stickerların açılır; DM'de gönderebilir ya da hikâyeye ekleyebilirsin.
 Yeni stickerlar kısa bir gecikmeyle kendiliğinden gelir. Ayrıca her zaman bir ↻ yenile düğmesi var.
 
-> **Durum: araştırma ve deney aşaması.** Henüz kurulabilir bir sürüm yok.
+> **Durum: v0.1 (A1) Android'de kullanılabilir — proje şimdilik durduruldu.**
+> Android klavyesi (A1 paketi) çalışıyor: WhatsApp sticker klasörü, Son/Favoriler/Sohbetlerde sekmeleri, Instagram'a gönderme (Hikâyeler: hareketli GIF; DM: sabit görüntü).
+> Şimdilik yalnızca kaynak koddan derlenen debug sürüm var (bkz. [android/README.md](android/README.md)). Çalışma yeniden başladığında sıradaki adımlar: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Dürüst sınırlar
 
