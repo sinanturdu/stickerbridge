@@ -8,9 +8,9 @@ StickerBridge is an open-source sticker keyboard for Android (first) and iOS (la
 It has a customizable sticker key: tap it inside Instagram and your WhatsApp stickers appear, ready to send in DMs or place on Stories.
 New stickers show up automatically after a short delay, and there is always a manual ↻ refresh button.
 
-> **Status: research & experiment phase (pre-alpha).** Nothing is installable yet.
-> We are first proving the critical technical assumptions with small experiments before building the product.
-> See [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status: v0.1 (A1) usable on Android — project paused.**
+> The Android keyboard (package A1) works: WhatsApp stickers folder, Recent/Favorites/In chats tabs, sending into Instagram (Stories: animated GIF; DMs: still image).
+> Debug builds only, built from source (see [android/README.md](android/README.md)). Next steps for when work resumes: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
 
@@ -88,6 +88,8 @@ stickerbridge/
 | E7 | Can a third-party keyboard send GIFs into Instagram DMs? | Done — no: DMs drop them silently; Stories animate them |
 | E5 | Can favorites be read via linked-device sync (test account only)? | Done — favorites and their real order readable, changes seen in ~1 s; unofficial, account risk |
 | E6 | What does WhatsApp Web store about favorite stickers? | Planned |
+| E8 | Can animated stickers reach DMs as a short video? | Done — intermittent uploads, no autoplay in chat; not shipped (code on an unmerged branch) |
+| E9a | Does the file format explain why GIPHY GIFs animate in DMs? | Done — no; DM animation is tied to Instagram's GIPHY catalog path |
 
 Full plans: [docs/experiments/](docs/experiments/)
 
